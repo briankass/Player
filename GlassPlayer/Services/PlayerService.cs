@@ -353,6 +353,37 @@ public sealed class PlayerService
     public bool IsCurrentPath(string path) =>
         HasMedia && Current != null && Current.Path.Equals(path, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Run a tag write. If that file is the song playing, close it for a moment (Windows won't let us write
+    /// a file that's open), write, then reopen it at the same position and play state.
+    /// </summary>
+    public async Task<string?> WriteWhileReleasedAsync(string path, Func<string?> write)
+    {
+        bool playingThis = !CurrentIsVideo && Current != null && Audio.IsCurrentPath(path);
+        if (!playingThis) return await Task.Run(write);
+
+        var pos = Audio.Position;
+        var wasPlaying = Audio.IsPlaying;
+        Audio.Stop();
+        var error = await Task.Run(write);
+        try
+        {
+            if (Current != null && Current.Path.Equals(path, StringComparison.OrdinalIgnoreCase) && !Audio.HasTrack)
+            {
+                var deck = await Task.Run(() => AudioEngine.Open(path));
+                deck.Seek(pos);
+                Audio.Start(deck);
+                if (!wasPlaying) Audio.Pause();
+            }
+        }
+        catch (Exception ex)
+        {
+            LastError = "Couldn't resume after saving tags: " + ex.Message;
+        }
+        NotifyState();
+        return error;
+    }
+
     private async Task UpdateSmtcAsync(Track track)
     {
         if (_smtc == null) return;

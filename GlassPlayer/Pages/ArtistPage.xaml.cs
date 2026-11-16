@@ -58,6 +58,12 @@ public sealed partial class ArtistPage : Page
     private void Play_Click(object sender, RoutedEventArgs e) => _ps.PlayList(AllTracks(), 0);
     private void Shuffle_Click(object sender, RoutedEventArgs e) => _ps.PlayList(AllTracks(), 0, shuffle: true);
 
+    private void FixMetadata_Click(object sender, RoutedEventArgs e)
+    {
+        var tracks = AllTracks();
+        if (tracks.Count > 0) MainWindow.Current.OpenMetadataFixer(tracks.Select(t => t.Path).ToList());
+    }
+
     private void AlbumsGrid_ItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is AlbumInfo a) MainWindow.Current.NavigateTo(typeof(AlbumPage), a.Key);

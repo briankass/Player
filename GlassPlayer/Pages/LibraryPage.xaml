@@ -60,7 +60,7 @@
 
         <!-- Albums -->
         <GridView x:Name="AlbumsGrid" Grid.Row="2" Visibility="Collapsed" SelectionMode="None"
-                  IsItemClickEnabled="True" ItemClick="AlbumsGrid_ItemClick" Padding="0,0,0,24">
+                  IsItemClickEnabled="True" ItemClick="AlbumsGrid_ItemClick" RightTapped="AlbumsGrid_RightTapped" Padding="0,0,0,24">
             <GridView.ItemTemplate>
                 <DataTemplate x:DataType="models:AlbumInfo">
                     <StackPanel Width="184" Spacing="4" Padding="6">
@@ -77,7 +77,7 @@
 
         <!-- Artists -->
         <GridView x:Name="ArtistsGrid" Grid.Row="2" Visibility="Collapsed" SelectionMode="None"
-                  IsItemClickEnabled="True" ItemClick="ArtistsGrid_ItemClick" Padding="0,0,0,24">
+                  IsItemClickEnabled="True" ItemClick="ArtistsGrid_ItemClick" RightTapped="ArtistsGrid_RightTapped" Padding="0,0,0,24">
             <GridView.ItemTemplate>
                 <DataTemplate x:DataType="models:ArtistInfo">
                     <StackPanel Width="172" Spacing="4" Padding="6">

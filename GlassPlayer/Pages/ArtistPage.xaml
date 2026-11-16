@@ -44,6 +44,12 @@
                                 <TextBlock Text="Shuffle"/>
                             </StackPanel>
                         </Button>
+                        <Button Click="FixMetadata_Click" Padding="18,8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE8EC;" FontSize="14"/>
+                                <TextBlock Text="Fix metadata"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </StackPanel>
             </Grid>

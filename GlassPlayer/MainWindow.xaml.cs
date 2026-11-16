@@ -126,10 +126,16 @@ public sealed partial class MainWindow : Window
         ContentFrame.Navigate(typeof(LibraryPage), q.Length == 0 ? null : q);
     }
 
-    public void OpenMetadataFixer()
+    /// <param name="paths">Fix just these files (searching starts straight away); null = the whole library.</param>
+    public void OpenMetadataFixer(IReadOnlyCollection<string>? paths = null)
     {
-        if (_metaWindow != null) { _metaWindow.Activate(); return; }
-        _metaWindow = new MetadataWindow(_ps.Library, paths => _ps.OnTagsChanged(paths), _ps.IsCurrentPath);
+        if (_metaWindow != null)
+        {
+            if (paths != null && paths.Count > 0) _metaWindow.ShowChosen(paths);
+            _metaWindow.Activate();
+            return;
+        }
+        _metaWindow = new MetadataWindow(_ps.Library, changed => _ps.OnTagsChanged(changed), _ps.WriteWhileReleasedAsync, paths);
         _metaWindow.Closed += (_, _) => _metaWindow = null;
         _metaWindow.Activate();
     }

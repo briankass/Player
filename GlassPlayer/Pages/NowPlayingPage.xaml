@@ -29,6 +29,20 @@
                            TextWrapping="Wrap" MaxLines="2" Margin="0,16,0,0"/>
                 <HyperlinkButton x:Name="ArtistLink" Padding="0" FontSize="18" Click="ArtistLink_Click"/>
                 <HyperlinkButton x:Name="AlbumLink" Padding="0" Opacity="0.75" Click="AlbumLink_Click"/>
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+                    <Button Click="FixSong_Click" ToolTipService.ToolTip="Fix this song's tags, cover and lyrics source">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE8EC;" FontSize="14"/>
+                            <TextBlock Text="Fix metadata"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Click="FixAlbum_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE93C;" FontSize="14"/>
+                            <TextBlock Text="Fix album"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </StackPanel>
 
             <Grid Grid.Column="1" RowSpacing="8">

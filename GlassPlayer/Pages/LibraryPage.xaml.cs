@@ -115,8 +115,54 @@ public sealed partial class LibraryPage : Page
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(album);
         menu.Items.Add(artist);
+        menu.Items.Add(new MenuFlyoutSeparator());
+        var fix = new MenuFlyoutItem { Text = "Fix metadata & art…", Icon = new FontIcon { Glyph = "\uE8EC" } };
+        fix.Click += (_, _) => MainWindow.Current.OpenMetadataFixer(new[] { t.Path });
+        var fixAlbum = new MenuFlyoutItem { Text = "Fix album metadata…", Icon = new FontIcon { Glyph = "\uE93C" } };
+        fixAlbum.Click += (_, _) => MainWindow.Current.OpenMetadataFixer(
+            _ps.AlbumOf(t)?.Tracks.Select(x => x.Path).ToList() ?? new List<string> { t.Path });
+        menu.Items.Add(fix);
+        menu.Items.Add(fixAlbum);
         menu.ShowAt(SongsList, e.GetPosition(SongsList));
         e.Handled = true;
+    }
+
+    private void AlbumsGrid_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is not AlbumInfo a) return;
+        ShowCollectionMenu(AlbumsGrid, e, a.Tracks,
+            () => MainWindow.Current.NavigateTo(typeof(AlbumPage), a.Key), "Open album");
+        e.Handled = true;
+    }
+
+    private void ArtistsGrid_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is not ArtistInfo a) return;
+        ShowCollectionMenu(ArtistsGrid, e, a.Albums.SelectMany(x => x.Tracks).ToList(),
+            () => MainWindow.Current.NavigateTo(typeof(ArtistPage), a.Name), "Open artist");
+        e.Handled = true;
+    }
+
+    private void ShowCollectionMenu(UIElement target, RightTappedRoutedEventArgs e, List<Track> tracks, Action open, string openText)
+    {
+        var menu = new MenuFlyout();
+        var play = new MenuFlyoutItem { Text = "Play", Icon = new FontIcon { Glyph = "\uE768" } };
+        play.Click += (_, _) => _ps.PlayList(tracks, 0);
+        var shuffle = new MenuFlyoutItem { Text = "Shuffle", Icon = new FontIcon { Glyph = "\uE8B1" } };
+        shuffle.Click += (_, _) => _ps.PlayList(tracks, 0, shuffle: true);
+        var queue = new MenuFlyoutItem { Text = "Add to queue", Icon = new FontIcon { Glyph = "\uE710" } };
+        queue.Click += (_, _) => { foreach (var t in tracks) _ps.AddToQueue(t); };
+        var openItem = new MenuFlyoutItem { Text = openText, Icon = new FontIcon { Glyph = "\uE8A7" } };
+        openItem.Click += (_, _) => open();
+        var fix = new MenuFlyoutItem { Text = "Fix metadata & art…", Icon = new FontIcon { Glyph = "\uE8EC" } };
+        fix.Click += (_, _) => MainWindow.Current.OpenMetadataFixer(tracks.Select(t => t.Path).ToList());
+        menu.Items.Add(play);
+        menu.Items.Add(shuffle);
+        menu.Items.Add(queue);
+        menu.Items.Add(openItem);
+        menu.Items.Add(new MenuFlyoutSeparator());
+        menu.Items.Add(fix);
+        menu.ShowAt(target, e.GetPosition(target));
     }
 
     private void AlbumsGrid_ItemClick(object sender, ItemClickEventArgs e)

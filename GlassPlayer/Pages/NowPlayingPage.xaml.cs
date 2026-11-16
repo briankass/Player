@@ -126,6 +126,17 @@ public sealed partial class NowPlayingPage : Page
         if (_ps.Current is Track t) MainWindow.Current.NavigateTo(typeof(ArtistPage), t.GroupArtist);
     }
 
+    private void FixSong_Click(object sender, RoutedEventArgs e)
+    {
+        if (_ps.Current is Track t && !t.IsVideo) MainWindow.Current.OpenMetadataFixer(new[] { t.Path });
+    }
+
+    private void FixAlbum_Click(object sender, RoutedEventArgs e)
+    {
+        if (_ps.Current is not Track t || t.IsVideo) return;
+        MainWindow.Current.OpenMetadataFixer(_ps.AlbumOf(t)?.Tracks.Select(x => x.Path).ToList() ?? new List<string> { t.Path });
+    }
+
     private void AlbumLink_Click(object sender, RoutedEventArgs e)
     {
         if (_ps.Current is Track t) MainWindow.Current.NavigateTo(typeof(AlbumPage), t.AlbumKey);

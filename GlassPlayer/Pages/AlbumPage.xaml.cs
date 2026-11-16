@@ -77,6 +77,11 @@ public sealed partial class AlbumPage : Page
         foreach (var t in _album.Tracks) _ps.AddToQueue(t);
     }
 
+    private void FixMetadata_Click(object sender, RoutedEventArgs e)
+    {
+        if (_album != null) MainWindow.Current.OpenMetadataFixer(_album.Tracks.Select(t => t.Path).ToList());
+    }
+
     private void ArtistLink_Click(object sender, RoutedEventArgs e)
     {
         if (_album != null) MainWindow.Current.NavigateTo(typeof(ArtistPage), _album.Artist);
