@@ -60,6 +60,12 @@
                 <NavigationViewItem Content="Video library" Tag="videos">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE8B2;"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Content="Playlists" Tag="playlists">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE728;"/></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Folders" Tag="folders">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8B7;"/></NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItemSeparator/>
                 <NavigationViewItem Content="Now playing" Tag="nowplaying">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE93C;"/></NavigationViewItem.Icon>
@@ -83,32 +89,37 @@
                 <InfoBar x:Name="UpdateBar" IsOpen="False" Severity="Informational" Margin="24,12,24,0"/>
                 <Frame x:Name="ContentFrame" Grid.Row="1" Navigated="ContentFrame_Navigated"/>
 
-                <!-- one video surface for the whole app; shown when the Video player page is active -->
+                <!-- one video surface for the whole app; shown when the Video player page is active.
+                     With libmpv, video is drawn by a child window placed exactly over VideoSurface. -->
                 <Grid x:Name="VideoHost" Grid.Row="1" Visibility="Collapsed" Background="Black"
                       DoubleTapped="VideoHost_DoubleTapped">
-                    <MediaPlayerElement x:Name="VideoElement" AreTransportControlsEnabled="False" Stretch="Uniform"
-                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-                    <TextBlock x:Name="NoVideoText" Text="No video playing. Pick one from the Video library."
-                               Foreground="White" Opacity="0.7" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    <Grid x:Name="VideoTopBar" VerticalAlignment="Top" Padding="20,12" RequestedTheme="Dark">
-                        <Grid.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                <GradientStop Color="#99000000" Offset="0"/>
-                                <GradientStop Color="#00000000" Offset="1"/>
-                            </LinearGradientBrush>
-                        </Grid.Background>
-                        <TextBlock x:Name="VideoTitle" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis" Margin="0,0,120,0"/>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
-                            <Button x:Name="SubtitleButton" Width="40" Height="40" Padding="0" Background="Transparent" BorderThickness="0"
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid x:Name="VideoTopBar" Padding="20,6" RequestedTheme="Dark" Background="#FF141414">
+                        <TextBlock x:Name="VideoTitle" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" Margin="0,0,180,0"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4">
+                            <Button x:Name="AudioTrackButton" Width="40" Height="36" Padding="0" Background="Transparent" BorderThickness="0"
+                                    Click="AudioTracks_Click" ToolTipService.ToolTip="Audio track">
+                                <FontIcon Glyph="&#xE8D6;" FontSize="16"/>
+                            </Button>
+                            <Button x:Name="SubtitleButton" Width="40" Height="36" Padding="0" Background="Transparent" BorderThickness="0"
                                     Click="Subtitles_Click" ToolTipService.ToolTip="Subtitles">
                                 <FontIcon Glyph="&#xE7F0;" FontSize="16"/>
                             </Button>
-                            <Button Width="40" Height="40" Padding="0" Background="Transparent" BorderThickness="0"
-                                    Click="Fullscreen_Click" ToolTipService.ToolTip="Full screen (F11)">
+                            <Button Width="40" Height="36" Padding="0" Background="Transparent" BorderThickness="0"
+                                    Click="Fullscreen_Click" ToolTipService.ToolTip="Full screen (F11 or double-click)">
                                 <FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="16"/>
                             </Button>
                         </StackPanel>
+                    </Grid>
+                    <Grid x:Name="VideoSurface" Grid.Row="1" SizeChanged="VideoSurface_SizeChanged">
+                        <MediaPlayerElement x:Name="VideoElement" AreTransportControlsEnabled="False" Stretch="Uniform"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        <TextBlock x:Name="NoVideoText" Text="No video playing. Pick one from the Video library."
+                                   Foreground="White" Opacity="0.7" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Grid>
                 </Grid>
             </Grid>
@@ -184,6 +195,14 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6" VerticalAlignment="Center">
+                    <Button x:Name="FavoriteButton" Width="40" Height="40" Padding="0" CornerRadius="20" Background="Transparent" BorderThickness="0"
+                            Click="Favorite_Click" ToolTipService.ToolTip="Favourite">
+                        <FontIcon x:Name="FavoriteIcon" Glyph="&#xEB51;" FontSize="16"/>
+                    </Button>
+                    <Button x:Name="AddToPlaylistButton" Width="40" Height="40" Padding="0" CornerRadius="20" Background="Transparent" BorderThickness="0"
+                            Click="AddToPlaylist_Click" ToolTipService.ToolTip="Add to playlist">
+                        <FontIcon Glyph="&#xE710;" FontSize="16"/>
+                    </Button>
                     <Button x:Name="VolumeButton" Width="40" Height="40" Padding="0" CornerRadius="20" Background="Transparent" BorderThickness="0"
                             RightTapped="VolumeButton_RightTapped"
                             ToolTipService.ToolTip="Volume (right-click to mute)">

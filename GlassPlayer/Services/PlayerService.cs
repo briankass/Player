@@ -24,6 +24,12 @@ public sealed class PlayerService
     public MediaPlayer Player { get; } = new();
     /// <summary>NAudio engine: music, with equalizer and crossfade.</summary>
     public AudioEngine Audio { get; } = new();
+    /// <summary>libmpv for video when libmpv-2.dll is present; otherwise video uses Player.</summary>
+    public MpvPlayer? Mpv { get; private set; }
+    private bool UseMpv => Mpv != null;
+    private bool _lastVideoPlaying;
+    /// <summary>Commands from mpv's window (double-click, F11, Esc...).</summary>
+    public event Action<string>? VideoCommand;
     private SystemMediaTransportControls? _smtc;
     private DispatcherQueueTimer? _tick;
     private bool _crossfading;
@@ -35,6 +41,12 @@ public sealed class PlayerService
     public bool Shuffle { get; private set; }
     public RepeatMode Repeat { get; private set; }
 
+    public PlaylistStore Playlists { get; } = new();
+    public StatsStore Stats { get; } = new();
+    private bool _counted;
+    private Dictionary<string, Track> _musicByPath = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, Track> _videoByPath = new(StringComparer.OrdinalIgnoreCase);
+
     public List<AlbumInfo> Albums { get; private set; } = new();
     public List<ArtistInfo> Artists { get; private set; } = new();
     private Dictionary<string, AlbumInfo> _albumByKey = new();
@@ -43,10 +55,66 @@ public sealed class PlayerService
     public string LastError { get; private set; } = "";
 
     private bool CurrentIsVideo => Current?.IsVideo == true;
-    public bool IsPlaying => CurrentIsVideo ? Player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing : Audio.IsPlaying;
-    public bool HasMedia => CurrentIsVideo ? Player.Source != null : Audio.HasTrack;
-    public TimeSpan Position => CurrentIsVideo ? Player.PlaybackSession.Position : Audio.Position;
-    public TimeSpan Duration => CurrentIsVideo ? Player.PlaybackSession.NaturalDuration : Audio.Duration;
+    public bool IsPlaying => CurrentIsVideo
+        ? (UseMpv ? Mpv!.IsPlaying : Player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing)
+        : Audio.IsPlaying;
+    public bool HasMedia => CurrentIsVideo ? (UseMpv ? Mpv!.HasFile : Player.Source != null) : Audio.HasTrack;
+    public TimeSpan Position => CurrentIsVideo
+        ? (UseMpv ? TimeSpan.FromSeconds(Mpv!.Position) : Player.PlaybackSession.Position)
+        : Audio.Position;
+    public TimeSpan Duration => CurrentIsVideo
+        ? (UseMpv ? TimeSpan.FromSeconds(Mpv!.Duration) : Player.PlaybackSession.NaturalDuration)
+        : Audio.Duration;
+    public bool VideoUsesMpv => UseMpv;
+
+    /// <summary>Start libmpv rendering into this window. Returns false (and keeps the Windows player) if it can't load.</summary>
+    public bool InitMpv(IntPtr videoHwnd)
+    {
+        if (Mpv != null) return true;
+        if (!MpvPlayer.IsAvailable()) return false;
+        try
+        {
+            var conf = Path.Combine(AppSettings.DataDir, "mpv-input.conf");
+            File.WriteAllText(conf, string.Join("\n", new[]
+            {
+                "MBTN_LEFT_DBL script-message glassplayer fullscreen",
+                "F11 script-message glassplayer fullscreen",
+                "f script-message glassplayer fullscreen",
+                "ESC script-message glassplayer exit-fullscreen",
+                "SPACE cycle pause",
+                "MBTN_RIGHT cycle pause",
+                "RIGHT seek 10",
+                "LEFT seek -10",
+                "UP seek 60",
+                "DOWN seek -60",
+                "PGDWN script-message glassplayer next",
+                "PGUP script-message glassplayer previous",
+                "q ignore",
+                "Q ignore",
+                "CLOSE_WIN ignore",
+            }));
+            var mpv = new MpvPlayer(videoHwnd, conf);
+            mpv.SetVolume(Settings.Volume);
+            mpv.SetMute(Settings.Playback.Muted);
+            mpv.Ended += () => _ui.TryEnqueue(() => { if (CurrentIsVideo) OnEnded(); });
+            mpv.FileLoaded += () => _ui.TryEnqueue(NotifyState);
+            mpv.Error += msg => _ui.TryEnqueue(() => { LastError = "Can't play video: " + msg; NotifyState(); });
+            mpv.Command += cmd => _ui.TryEnqueue(() =>
+            {
+                if (cmd == "next") Next();
+                else if (cmd == "previous") Previous();
+                else VideoCommand?.Invoke(cmd);
+            });
+            Mpv = mpv;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LastError = "Video engine (libmpv) failed to start, using Windows playback: " + ex.Message;
+            Mpv = null;
+            return false;
+        }
+    }
     public bool IsMuted => Settings.Playback.Muted;
 
     public event Action? TrackChanged;
@@ -68,6 +136,8 @@ public sealed class PlayerService
         Settings = AppSettings.Load();
         Library.LoadCache();
         VideoLibrary.LoadCache();
+        Playlists.Load();
+        Stats.Load();
         RebuildViews();
         RebuildVideos();
 
@@ -118,13 +188,23 @@ public sealed class PlayerService
 
         _tick = ui.CreateTimer();
         _tick.Interval = TimeSpan.FromMilliseconds(250);
-        _tick.Tick += (_, _) => CheckCrossfade();
+        _tick.Tick += (_, _) =>
+        {
+            CheckCrossfade();
+            CountPlay();
+            if (CurrentIsVideo && UseMpv)
+            {
+                var playing = Mpv!.IsPlaying; // pause/play from mpv's own controls or keys
+                if (playing != _lastVideoPlaying) { _lastVideoPlaying = playing; NotifyState(); }
+            }
+        };
         _tick.Start();
     }
 
     public void Shutdown()
     {
         _tick?.Stop();
+        Mpv?.Dispose();
         Audio.Dispose();
         Player.Dispose();
     }
@@ -146,6 +226,7 @@ public sealed class PlayerService
         Settings.Playback.Muted = muted;
         Audio.Muted = muted;
         Player.IsMuted = muted;
+        Mpv?.SetMute(muted);
         Settings.Save();
         PlaybackStateChanged?.Invoke();
     }
@@ -178,8 +259,65 @@ public sealed class PlayerService
     public ArtistInfo? FindArtist(string name) =>
         Artists.FirstOrDefault(a => a.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
+    public Track? FindTrack(string path) =>
+        _musicByPath.TryGetValue(path, out var t) ? t : _videoByPath.TryGetValue(path, out var v) ? v : null;
+
+    public List<Track> Resolve(IEnumerable<string> paths) =>
+        paths.Select(FindTrack).Where(t => t != null).Select(t => t!).ToList();
+
+    // ---------------- favourites, play counts, smart playlists ----------------
+
+    public bool IsFavorite(Track t) => Stats.IsFavorite(t.Path);
+
+    public void ToggleFavorite(Track t)
+    {
+        Stats.SetFavorite(t.Path, !Stats.IsFavorite(t.Path));
+        PlaybackStateChanged?.Invoke();
+    }
+
+    /// <summary>A play counts once half the song (or 4 minutes) has been heard.</summary>
+    private void CountPlay()
+    {
+        var t = Current;
+        if (t == null || _counted || !IsPlaying) return;
+        var d = Duration.TotalSeconds;
+        if (d <= 0) return;
+        if (Position.TotalSeconds >= Math.Min(d * 0.5, 240))
+        {
+            _counted = true;
+            Stats.RecordPlay(t.Path);
+        }
+    }
+
+    public static readonly (string Key, string Name, string Glyph, string Description)[] SmartPlaylists =
+    {
+        ("favorites", "Favourites", "\uEB52", "Songs and videos you've hearted"),
+        ("most", "Most played", "\uE9D2", "Your top 100"),
+        ("recentplayed", "Recently played", "\uE81C", "The last 100 songs you listened to"),
+        ("recentadded", "Recently added", "\uECC8", "The newest 100 songs in your library"),
+        ("never", "Never played", "\uE7BA", "Songs you haven't heard here yet"),
+    };
+
+    public List<Track> SmartPlaylist(string key)
+    {
+        IEnumerable<Track> music = Library.Tracks;
+        return key switch
+        {
+            "favorites" => Library.Tracks.Concat(VideoLibrary.Tracks).Where(t => Stats.IsFavorite(t.Path)).ToList(),
+            "most" => music.Where(t => Stats.PlayCount(t.Path) > 0)
+                           .OrderByDescending(t => Stats.PlayCount(t.Path)).Take(100).ToList(),
+            "recentplayed" => music.Where(t => Stats.Get(t.Path)?.LastPlayed > DateTime.MinValue)
+                                   .OrderByDescending(t => Stats.Get(t.Path)!.LastPlayed).Take(100).ToList(),
+            "recentadded" => music.OrderByDescending(t => t.AddedUtc).Take(100).ToList(),
+            "never" => music.Where(t => Stats.PlayCount(t.Path) == 0).ToList(),
+            _ => new List<Track>(),
+        };
+    }
+
     public void RebuildViews()
     {
+        _musicByPath = new Dictionary<string, Track>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in Library.Tracks) _musicByPath[t.Path] = t;
         var albums = Library.Tracks
             .GroupBy(t => t.AlbumKey)
             .Select(g =>
@@ -297,6 +435,8 @@ public sealed class PlayerService
 
     public void RebuildVideos()
     {
+        _videoByPath = new Dictionary<string, Track>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in VideoLibrary.Tracks) _videoByPath[t.Path] = t;
         Videos = VideoLibrary.Tracks.Select(t => new VideoInfo
         {
             Track = t,
@@ -327,9 +467,9 @@ public sealed class PlayerService
     public void SaveVideoPosition()
     {
         var t = Current;
-        if (t == null || !t.IsVideo || Player.Source == null) return;
-        var pos = Player.PlaybackSession.Position.TotalSeconds;
-        var dur = Player.PlaybackSession.NaturalDuration.TotalSeconds;
+        if (t == null || !t.IsVideo || !HasMedia) return;
+        var pos = Position.TotalSeconds;
+        var dur = Duration.TotalSeconds;
         if (dur > 0 && t.DurationSeconds <= 0) t.DurationSeconds = dur;
         if (pos < 30 || (dur > 0 && pos > dur - 60)) Settings.VideoPositions.Remove(t.Path); // barely started or finished
         else Settings.VideoPositions[t.Path] = pos;
@@ -531,7 +671,8 @@ public sealed class PlayerService
         }
         if (CurrentIsVideo)
         {
-            if (IsPlaying) Player.Pause(); else Player.Play();
+            if (UseMpv) { if (Mpv!.IsPlaying) Mpv.Pause(); else Mpv.Play(); NotifyState(); }
+            else if (IsPlaying) Player.Pause(); else Player.Play();
         }
         else
         {
@@ -556,7 +697,11 @@ public sealed class PlayerService
 
     public void Seek(TimeSpan position)
     {
-        if (CurrentIsVideo) { if (Player.Source != null) Player.PlaybackSession.Position = position; }
+        if (CurrentIsVideo)
+        {
+            if (UseMpv) Mpv!.Seek(position.TotalSeconds);
+            else if (Player.Source != null) Player.PlaybackSession.Position = position;
+        }
         else Audio.Seek(position);
     }
 
@@ -565,6 +710,7 @@ public sealed class PlayerService
         v = Math.Clamp(v, 0, 1);
         Player.Volume = v;
         Audio.Volume = v;
+        Mpv?.SetVolume(v);
         Settings.Volume = v;
     }
 
@@ -582,6 +728,7 @@ public sealed class PlayerService
         else
         {
             if (!CurrentIsVideo) Audio.Stop(); // end of the queue: Play starts this song again
+            else Mpv?.Stop();
             NotifyState();
         }
     }
@@ -591,11 +738,21 @@ public sealed class PlayerService
         var track = Current;
         if (track == null) { _crossfading = false; return; }
         LastError = "";
+        _counted = false;
         TrackChanged?.Invoke();
 
         try
         {
-            if (track.IsVideo)
+            if (track.IsVideo && UseMpv)
+            {
+                Audio.Stop();
+                if (Player.Source != null) { Player.Pause(); Player.Source = null; }
+                var resume = Settings.VideoPositions.TryGetValue(track.Path, out var r) ? r : 0;
+                Mpv!.Load(track.Path, resume);
+                _lastVideoPlaying = true;
+                NotifyState();
+            }
+            else if (track.IsVideo)
             {
                 Audio.Stop();
                 var file = await StorageFile.GetFileFromPathAsync(track.Path);
@@ -613,6 +770,7 @@ public sealed class PlayerService
             else
             {
                 if (Player.Source != null) { Player.Pause(); Player.Source = null; }
+                if (Mpv?.HasFile == true) Mpv.Stop();
                 var path = track.Path;
                 var deck = await Task.Run(() => AudioEngine.Open(path)); // may be slow on a NAS
                 if (!ReferenceEquals(track, Current)) { deck.Dispose(); return; }

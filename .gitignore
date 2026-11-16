@@ -4,3 +4,7 @@ obj/
 *.user
 publish/
 *.zip
+
+libmpv/
+libmpv-dl/
+libmpv-x/

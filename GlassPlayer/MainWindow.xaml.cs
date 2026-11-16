@@ -51,7 +51,7 @@ public sealed partial class MainWindow : Window
             UpdatePosition();
             if (++_ticks % 20 == 0 && _ps.IsPlaying) _ps.SaveVideoPosition(); // every ~5 s
         };
-        VideoElement.SetMediaPlayer(_ps.Player);
+        SetupVideo();
         _timer.Start();
 
         ContentFrame.Navigate(typeof(HomePage));
@@ -93,6 +93,8 @@ public sealed partial class MainWindow : Window
             case "home": NavigateTo(typeof(HomePage)); break;
             case "library": NavigateTo(typeof(LibraryPage)); break;
             case "videos": NavigateTo(typeof(VideoLibraryPage)); break;
+            case "playlists": NavigateTo(typeof(PlaylistsPage)); break;
+            case "folders": NavigateTo(typeof(FoldersPage)); break;
             case "nowplaying": OpenNowPlaying(); break;
             case "queue": NavigateTo(typeof(QueuePage)); break;
             case "metadata": OpenMetadataFixer(); break;
@@ -109,11 +111,15 @@ public sealed partial class MainWindow : Window
         Nav.IsBackEnabled = ContentFrame.CanGoBack;
         var page = e.SourcePageType;
         VideoHost.Visibility = page == typeof(VideoPlayerPage) ? Visibility.Visible : Visibility.Collapsed;
+        _videoRect = default;
+        PlaceVideoWindow();
         if (page != typeof(VideoPlayerPage) && _fullscreen) SetFullscreen(false);
         if (page == typeof(SettingsPage)) { Nav.SelectedItem = Nav.SettingsItem; return; }
         var tag = page == typeof(HomePage) ? "home"
             : page == typeof(NowPlayingPage) || page == typeof(VideoPlayerPage) ? "nowplaying"
             : page == typeof(VideoLibraryPage) ? "videos"
+            : page == typeof(PlaylistsPage) || page == typeof(PlaylistPage) ? "playlists"
+            : page == typeof(FoldersPage) ? "folders"
             : page == typeof(QueuePage) ? "queue"
             : "library"; // library, album, artist pages
         foreach (var item in Nav.MenuItems.OfType<NavigationViewItem>())
@@ -148,6 +154,7 @@ public sealed partial class MainWindow : Window
         UpdateVideoInfo();
         if (t == null) return;
         _tray?.SetTooltip($"{t.Title} — {t.Artist}");
+        UpdateFavoriteIcon();
         BarTitle.Text = t.Title;
         BarArtist.Text = t.Artist;
         DurText.Text = t.DurationText;
@@ -161,6 +168,7 @@ public sealed partial class MainWindow : Window
 
     private void OnPlaybackStateChanged()
     {
+        UpdateFavoriteIcon();
         UpdateVolumeIcon();
         _mini?.Refresh();
         PlayIcon.Glyph = _ps.IsPlaying ? "" : "";
@@ -222,13 +230,61 @@ public sealed partial class MainWindow : Window
 
     // ---------------- video ----------------
 
+    private IntPtr _videoHwnd;
+    private Windows.Foundation.Rect _videoRect;
+
+    private IntPtr MainHwnd => WinRT.Interop.WindowNative.GetWindowHandle(this);
+
+    private void SetupVideo()
+    {
+        VideoElement.SetMediaPlayer(_ps.Player); // fallback engine
+        _videoHwnd = NativeWindows.CreateVideoChild(MainHwnd);
+        if (_videoHwnd == IntPtr.Zero || !_ps.InitMpv(_videoHwnd)) return;
+
+        _ps.VideoCommand += cmd =>
+        {
+            if (cmd == "fullscreen") SetFullscreen(!_fullscreen);
+            else if (cmd == "exit-fullscreen" && _fullscreen) SetFullscreen(false);
+        };
+        // keep the child window glued to the XAML video area
+        VideoSurface.LayoutUpdated += (_, _) => PlaceVideoWindow();
+        AppWindow.Changed += (_, _) => PlaceVideoWindow();
+    }
+
+    private bool MpvVideoShowing =>
+        _ps.VideoUsesMpv && _videoHwnd != IntPtr.Zero && AppWindow.IsVisible
+        && VideoHost.Visibility == Visibility.Visible && _ps.Current?.IsVideo == true;
+
+    private void VideoSurface_SizeChanged(object sender, SizeChangedEventArgs e) => PlaceVideoWindow();
+
+    private void PlaceVideoWindow()
+    {
+        if (_videoHwnd == IntPtr.Zero || !_ps.VideoUsesMpv) return;
+        if (!MpvVideoShowing || VideoSurface.ActualWidth < 2 || VideoSurface.ActualHeight < 2)
+        {
+            if (_videoRect.Width > 0) { NativeWindows.Hide(_videoHwnd); _videoRect = default; }
+            return;
+        }
+        var scale = Content.XamlRoot?.RasterizationScale ?? 1.0;
+        var origin = VideoSurface.TransformToVisual(null).TransformPoint(new Windows.Foundation.Point(0, 0));
+        var rect = new Windows.Foundation.Rect(
+            Math.Round(origin.X * scale), Math.Round(origin.Y * scale),
+            Math.Round(VideoSurface.ActualWidth * scale), Math.Round(VideoSurface.ActualHeight * scale));
+        if (rect == _videoRect) return;
+        _videoRect = rect;
+        NativeWindows.Place(_videoHwnd, (int)rect.X, (int)rect.Y, (int)rect.Width, (int)rect.Height);
+    }
+
     private void UpdateVideoInfo()
     {
         var t = _ps.Current;
         bool video = t?.IsVideo == true;
         NoVideoText.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
-        VideoElement.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
+        VideoElement.Visibility = video && !_ps.VideoUsesMpv ? Visibility.Visible : Visibility.Collapsed;
         VideoTitle.Text = video ? t!.Title : "";
+        AudioTrackButton.Visibility = _ps.VideoUsesMpv ? Visibility.Visible : Visibility.Collapsed;
+        _videoRect = default; // force re-placement
+        PlaceVideoWindow();
     }
 
     private void VideoHost_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e) =>
@@ -253,24 +309,42 @@ public sealed partial class MainWindow : Window
         Root.RowDefinitions[0].Height = on ? new GridLength(0) : new GridLength(48);
         AppTitleBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         PlayerBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        VideoTopBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         Nav.IsPaneVisible = !on;
         Nav.IsBackButtonVisible = on ? NavigationViewBackButtonVisible.Collapsed : NavigationViewBackButtonVisible.Visible;
         UpdateBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
-        // in full screen, use the built-in auto-hiding controls
-        VideoElement.AreTransportControlsEnabled = on;
-        if (on)
+        // full screen controls: mpv's own on-screen controller, or the Windows player's built-in ones
+        if (!_ps.VideoUsesMpv)
         {
-            VideoElement.TransportControls.IsZoomButtonVisible = false;
-            VideoElement.TransportControls.IsCompact = false;
+            VideoElement.AreTransportControlsEnabled = on;
+            if (on)
+            {
+                VideoElement.TransportControls.IsZoomButtonVisible = false;
+                VideoElement.TransportControls.IsCompact = false;
+            }
         }
         FullscreenIcon.Glyph = on ? "\uE73F" : "\uE740";
+        _videoRect = default;
+        PlaceVideoWindow();
     }
 
     private void Subtitles_Click(object sender, RoutedEventArgs e)
     {
+        if (_ps.VideoUsesMpv && _ps.Mpv != null)
+        {
+            var subs = _ps.Mpv.Tracks().Where(t => t.Type == "sub").ToList();
+            var items = new List<(string, bool, bool)> { ("Off", !subs.Any(t => t.Selected), true), ("-", false, true) };
+            if (subs.Count == 0) items.Add(("No subtitles found", false, false));
+            items.AddRange(subs.Select(t => (t.Label, t.Selected, true)));
+            var pick = NativeWindows.ShowMenu(MainHwnd, items);
+            if (pick == 0) _ps.Mpv.SelectSubtitle(null);
+            else if (pick >= 2 && pick - 2 < subs.Count) _ps.Mpv.SelectSubtitle(subs[pick - 2].Id);
+            return;
+        }
+
         var menu = new MenuFlyout();
         var tracks = _ps.SubtitleTracks();
-        var off = new ToggleMenuFlyoutItem { Text = "Off" };
+        var off = new MenuFlyoutItem { Text = "Off" };
         off.Click += (_, _) => _ps.SetSubtitle(null);
         menu.Items.Add(off);
         if (tracks.Count == 0)
@@ -283,7 +357,73 @@ public sealed partial class MainWindow : Window
         }
         menu.ShowAt(SubtitleButton);
     }
+
+    private void AudioTracks_Click(object sender, RoutedEventArgs e)
+    {
+        if (_ps.Mpv == null) return;
+        var audio = _ps.Mpv.Tracks().Where(t => t.Type == "audio").ToList();
+        if (audio.Count == 0) { NativeWindows.ShowMenu(MainHwnd, new[] { ("No audio tracks", false, false) }); return; }
+        var pick = NativeWindows.ShowMenu(MainHwnd, audio.Select(t => (t.Label, t.Selected, true)).ToList());
+        if (pick >= 0) _ps.Mpv.SelectAudio(audio[pick].Id);
+    }
+
     private void Lyrics_Click(object sender, RoutedEventArgs e) => OpenNowPlaying();
+
+    // ---------------- favourites, playlists ----------------
+
+    private void UpdateFavoriteIcon()
+    {
+        var fav = _ps.Current is Models.Track t && _ps.IsFavorite(t);
+        FavoriteIcon.Glyph = fav ? "\uEB52" : "\uEB51";
+        if (fav) FavoriteIcon.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 92, 120));
+        else FavoriteIcon.ClearValue(IconElement.ForegroundProperty);
+        ToolTipService.SetToolTip(FavoriteButton, fav ? "Remove from Favourites" : "Add to Favourites");
+    }
+
+    private void Favorite_Click(object sender, RoutedEventArgs e)
+    {
+        if (_ps.Current is Models.Track t) _ps.ToggleFavorite(t);
+    }
+
+    private void AddToPlaylist_Click(object sender, RoutedEventArgs e)
+    {
+        if (_ps.Current is Models.Track t) PlaylistMenu.Flyout(new[] { t }).ShowAt(AddToPlaylistButton);
+    }
+
+    /// <summary>Ask for a line of text (playlist names...). Null if cancelled.</summary>
+    public async Task<string?> PromptAsync(string title, string placeholder, string initial = "")
+    {
+        var box = new TextBox { PlaceholderText = placeholder, Text = initial, MinWidth = 320 };
+        box.SelectAll();
+        var dlg = new ContentDialog
+        {
+            Title = title,
+            Content = box,
+            PrimaryButtonText = "OK",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = Content.XamlRoot,
+        };
+        return await dlg.ShowAsync() == ContentDialogResult.Primary && box.Text.Trim().Length > 0 ? box.Text.Trim() : null;
+    }
+
+    public async Task<string?> PickOpenFileAsync(params string[] extensions)
+    {
+        var picker = new FileOpenPicker();
+        foreach (var e in extensions) picker.FileTypeFilter.Add(e);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, MainHwnd);
+        var file = await picker.PickSingleFileAsync();
+        return file?.Path;
+    }
+
+    public async Task<string?> PickSaveFileAsync(string suggestedName, string typeName, string extension)
+    {
+        var picker = new FileSavePicker { SuggestedFileName = suggestedName };
+        picker.FileTypeChoices.Add(typeName, new List<string> { extension });
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, MainHwnd);
+        var file = await picker.PickSaveFileAsync();
+        return file?.Path;
+    }
     private void Queue_Click(object sender, RoutedEventArgs e) => NavigateTo(typeof(QueuePage));
 
     // ---------------- tray, startup, mini player ----------------

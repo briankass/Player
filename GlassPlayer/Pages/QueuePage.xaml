@@ -15,12 +15,20 @@
                 <TextBlock Text="Play queue" Style="{StaticResource TitleLargeTextBlockStyle}"/>
                 <TextBlock x:Name="CountText" Opacity="0.6"/>
             </StackPanel>
-            <Button HorizontalAlignment="Right" VerticalAlignment="Center" Click="Clear_Click">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE74D;" FontSize="14"/>
-                    <TextBlock Text="Clear upcoming"/>
-                </StackPanel>
-            </Button>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8">
+                <Button Click="SaveAsPlaylist_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE728;" FontSize="14"/>
+                        <TextBlock Text="Save as playlist"/>
+                    </StackPanel>
+                </Button>
+                <Button Click="Clear_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE74D;" FontSize="14"/>
+                        <TextBlock Text="Clear upcoming"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
         <ListView x:Name="QueueList" Grid.Row="1" SelectionMode="Single" IsItemClickEnabled="True"
                   ItemClick="QueueList_ItemClick" RightTapped="QueueList_RightTapped" Padding="0,0,0,24">

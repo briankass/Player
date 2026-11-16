@@ -109,12 +109,23 @@ public sealed partial class LibraryPage : Page
         album.Click += (_, _) => MainWindow.Current.NavigateTo(typeof(AlbumPage), t.AlbumKey);
         var artist = new MenuFlyoutItem { Text = "Go to artist", Icon = new FontIcon { Glyph = "\uE77B" } };
         artist.Click += (_, _) => MainWindow.Current.NavigateTo(typeof(ArtistPage), t.GroupArtist);
+        var fav = new MenuFlyoutItem
+        {
+            Text = _ps.IsFavorite(t) ? "Remove from Favourites" : "Add to Favourites",
+            Icon = new FontIcon { Glyph = _ps.IsFavorite(t) ? "\uEB52" : "\uEB51" },
+        };
+        fav.Click += (_, _) => _ps.ToggleFavorite(t);
+        var folder = new MenuFlyoutItem { Text = "Show in folder", Icon = new FontIcon { Glyph = "\uE8B7" } };
+        folder.Click += (_, _) => MainWindow.Current.NavigateTo(typeof(FoldersPage), System.IO.Path.GetDirectoryName(t.Path));
         menu.Items.Add(play);
         menu.Items.Add(next);
         menu.Items.Add(add);
+        menu.Items.Add(PlaylistMenu.SubItem(new[] { t }));
+        menu.Items.Add(fav);
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(album);
         menu.Items.Add(artist);
+        menu.Items.Add(folder);
         menu.Items.Add(new MenuFlyoutSeparator());
         var fix = new MenuFlyoutItem { Text = "Fix metadata & art…", Icon = new FontIcon { Glyph = "\uE8EC" } };
         fix.Click += (_, _) => MainWindow.Current.OpenMetadataFixer(new[] { t.Path });
@@ -159,6 +170,7 @@ public sealed partial class LibraryPage : Page
         menu.Items.Add(play);
         menu.Items.Add(shuffle);
         menu.Items.Add(queue);
+        menu.Items.Add(PlaylistMenu.SubItem(tracks));
         menu.Items.Add(openItem);
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(fix);

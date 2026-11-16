@@ -19,6 +19,34 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      # libmpv video engine (pinned build; cached so a deleted upstream release can't break us)
+      - name: Cache libmpv
+        uses: actions/cache@v4
+        with:
+          path: libmpv
+          key: libmpv-20261020-x86_64
+
+      - name: Get libmpv
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MPV_TAG: '20261020'
+        run: |
+          if (Test-Path libmpv/libmpv-2.dll) { "libmpv from cache"; exit 0 }
+          New-Item -ItemType Directory -Force libmpv, libmpv-dl | Out-Null
+          gh release download $env:MPV_TAG -R shinchiro/mpv-winbuild-cmake -p 'mpv-dev-x86_64-2*' -D libmpv-dl
+          if ($LASTEXITCODE -ne 0) {
+            "Pinned libmpv release $env:MPV_TAG not found, using the latest one"
+            gh release download -R shinchiro/mpv-winbuild-cmake -p 'mpv-dev-x86_64-2*' -D libmpv-dl
+            if ($LASTEXITCODE -ne 0) { throw "could not download libmpv" }
+          }
+          $archive = Get-ChildItem libmpv-dl -Filter *.7z | Select-Object -First 1
+          7z x $archive.FullName -olibmpv-x -y | Out-Null
+          $dll = Get-ChildItem libmpv-x -Recurse -Filter libmpv-2.dll | Select-Object -First 1
+          if (-not $dll) { throw "libmpv-2.dll not found in $($archive.Name)" }
+          Copy-Item $dll.FullName libmpv/
+          "Got $($archive.Name)"
+
       - name: Work out version
         id: ver
         shell: pwsh

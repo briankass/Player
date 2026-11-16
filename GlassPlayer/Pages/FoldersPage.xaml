@@ -1,0 +1,66 @@
+<Page
+    x:Class="GlassPlayer.Pages.FoldersPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:GlassPlayer.Pages"
+    Background="Transparent">
+
+    <Grid Padding="40,24,40,0" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <TextBlock Text="Folders" Style="{StaticResource TitleLargeTextBlockStyle}"/>
+            <StackPanel x:Name="FolderActions" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8">
+                <Button Click="Up_Click" ToolTipService.ToolTip="Up one level">
+                    <FontIcon Glyph="&#xE74A;" FontSize="14"/>
+                </Button>
+                <Button Style="{StaticResource AccentButtonStyle}" Click="PlayAll_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE768;" FontSize="14"/>
+                        <TextBlock Text="Play folder"/>
+                    </StackPanel>
+                </Button>
+                <Button Click="ShuffleAll_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8B1;" FontSize="14"/>
+                        <TextBlock Text="Shuffle"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <BreadcrumbBar x:Name="Crumbs" Grid.Row="1" ItemClicked="Crumbs_ItemClicked"/>
+
+        <Grid Grid.Row="2">
+            <ListView x:Name="EntryList" SelectionMode="Single" IsItemClickEnabled="True" ItemClick="EntryList_ItemClick"
+                      RightTapped="EntryList_RightTapped" Padding="0,0,0,24">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:FolderEntry">
+                        <Grid Padding="4,8" ColumnSpacing="14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="48" Height="48" CornerRadius="6" Background="{ThemeResource ControlFillColorSecondaryBrush}">
+                                <FontIcon Glyph="{x:Bind Glyph}" FontSize="20" Opacity="0.8"/>
+                                <Image Source="{x:Bind Art}" Stretch="UniformToFill"/>
+                            </Grid>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{x:Bind Subtitle}" Opacity="0.65" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Text="{x:Bind Right}" Opacity="0.7" VerticalAlignment="Center"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+            <TextBlock x:Name="EmptyText" Visibility="Collapsed" Opacity="0.7" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextAlignment="Center" TextWrapping="Wrap" MaxWidth="460"/>
+        </Grid>
+    </Grid>
+</Page>

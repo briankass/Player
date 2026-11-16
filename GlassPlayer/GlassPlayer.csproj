@@ -29,5 +29,8 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\GlassPlayer.ico" CopyToOutputDirectory="PreserveNewest" />
+    <!-- video engine; downloaded by CI into ..\libmpv. Without it, video falls back to Windows playback. -->
+    <None Include="..\libmpv\libmpv-2.dll" Condition="Exists('..\libmpv\libmpv-2.dll')" Link="libmpv-2.dll"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

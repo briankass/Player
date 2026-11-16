@@ -64,4 +64,13 @@ public sealed partial class QueuePage : Page
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e) => _ps.ClearQueue();
+
+    private async void SaveAsPlaylist_Click(object sender, RoutedEventArgs e)
+    {
+        if (_ps.Queue.Count == 0) return;
+        var name = await MainWindow.Current.PromptAsync("Save queue as playlist", "Playlist name");
+        if (name == null) return;
+        var p = _ps.Playlists.Create(name, _ps.Queue.Select(t => t.Path));
+        MainWindow.Current.NavigateTo(typeof(PlaylistPage), p.Id);
+    }
 }
