@@ -41,6 +41,7 @@ public sealed partial class SettingsPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         LoadGlassControls();
+        LoadPlaybackControls();
         VersionText.Text = $"Glass Player {UpdateService.CurrentVersion}";
         _ps.ScanStatus += OnScanStatus;
         ShowFolders();
@@ -127,6 +128,152 @@ public sealed partial class SettingsPage : Page
         LoadGlassControls();
         MainWindow.Current.ApplyGlass();
         _ps.SaveSettings();
+    }
+
+    // ---------------- playback ----------------
+
+    private PlaybackSettings Playback => _ps.Settings.Playback;
+    private readonly List<Slider> _bandSliders = new();
+    private bool _playbackLoading;
+
+    private void BuildEqBands()
+    {
+        if (_bandSliders.Count > 0) return;
+        for (int i = 0; i < AudioEngine.BandFrequencies.Length; i++)
+        {
+            EqBands.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var f = AudioEngine.BandFrequencies[i];
+            var col = new StackPanel { Spacing = 4, HorizontalAlignment = HorizontalAlignment.Center };
+            var value = new TextBlock { FontSize = 11, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Center };
+            var slider = new Slider
+            {
+                Orientation = Orientation.Vertical,
+                Height = 150,
+                Minimum = -12,
+                Maximum = 12,
+                StepFrequency = 0.5,
+                TickFrequency = 6,
+                TickPlacement = Microsoft.UI.Xaml.Controls.Primitives.TickPlacement.Outside,
+                Tag = i,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
+            slider.ValueChanged += (_, e) =>
+            {
+                value.Text = $"{e.NewValue:+0.#;-0.#;0}";
+                if (_playbackLoading) return;
+                Playback.EqGains[(int)slider.Tag] = e.NewValue;
+                Playback.EqPreset = "Custom";
+                _playbackLoading = true;
+                EqPresetBox.SelectedItem = "Custom";
+                _playbackLoading = false;
+                _ps.ApplyEqualizer();
+            };
+            col.Children.Add(value);
+            col.Children.Add(slider);
+            col.Children.Add(new TextBlock
+            {
+                Text = f >= 1000 ? $"{f / 1000:0.#}k" : $"{f:0}",
+                FontSize = 11,
+                Opacity = 0.7,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            });
+            Grid.SetColumn(col, i);
+            EqBands.Children.Add(col);
+            _bandSliders.Add(slider);
+        }
+    }
+
+    private void LoadPlaybackControls()
+    {
+        BuildEqBands();
+        _playbackLoading = true;
+        if (Playback.EqGains.Length != 10) Playback.EqGains = new double[10];
+        CrossfadeSwitch.IsOn = Playback.CrossfadeEnabled;
+        CrossfadeSlider.Value = Playback.CrossfadeSeconds;
+        CrossfadeValue.Text = $"{Playback.CrossfadeSeconds:0} s";
+        CrossfadeSlider.IsEnabled = Playback.CrossfadeEnabled;
+        var presets = PlaybackSettings.Presets.Keys.ToList();
+        presets.Add("Custom");
+        EqPresetBox.ItemsSource = presets;
+        EqPresetBox.SelectedItem = presets.Contains(Playback.EqPreset) ? Playback.EqPreset : "Custom";
+        EqSwitch.IsOn = Playback.EqEnabled;
+        for (int i = 0; i < _bandSliders.Count; i++) _bandSliders[i].Value = Playback.EqGains[i];
+        SetEqEnabledUi();
+
+        StartupSwitch.IsOn = StartupService.IsEnabled;
+        StartMinSwitch.IsOn = _ps.Settings.StartMinimized;
+        MinTraySwitch.IsOn = _ps.Settings.MinimizeToTray;
+        CloseTraySwitch.IsOn = _ps.Settings.CloseToTray;
+        _playbackLoading = false;
+    }
+
+    private void SetEqEnabledUi()
+    {
+        EqPresetBox.IsEnabled = EqSwitch.IsOn;
+        foreach (var s in _bandSliders) s.IsEnabled = EqSwitch.IsOn;
+    }
+
+    private void Crossfade_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_playbackLoading) return;
+        Playback.CrossfadeEnabled = CrossfadeSwitch.IsOn;
+        CrossfadeSlider.IsEnabled = CrossfadeSwitch.IsOn;
+        _ps.SaveSettings();
+    }
+
+    private void CrossfadeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (CrossfadeValue != null) CrossfadeValue.Text = $"{e.NewValue:0} s";
+        if (_playbackLoading) return;
+        Playback.CrossfadeSeconds = e.NewValue;
+    }
+
+    private void Eq_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_playbackLoading) return;
+        Playback.EqEnabled = EqSwitch.IsOn;
+        SetEqEnabledUi();
+        _ps.ApplyEqualizer();
+        _ps.SaveSettings();
+    }
+
+    private void EqPreset_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_playbackLoading || EqPresetBox.SelectedItem is not string name) return;
+        if (!PlaybackSettings.Presets.TryGetValue(name, out var gains)) return; // "Custom": keep sliders
+        Playback.EqPreset = name;
+        Playback.EqGains = gains.ToArray();
+        _playbackLoading = true;
+        for (int i = 0; i < _bandSliders.Count; i++) _bandSliders[i].Value = gains[i];
+        _playbackLoading = false;
+        _ps.ApplyEqualizer();
+        _ps.SaveSettings();
+    }
+
+    private async void Startup_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_playbackLoading) return;
+        try
+        {
+            StartupService.SetEnabled(StartupSwitch.IsOn);
+        }
+        catch (Exception ex)
+        {
+            _playbackLoading = true;
+            StartupSwitch.IsOn = StartupService.IsEnabled;
+            _playbackLoading = false;
+            await MainWindow.Current.ShowMessage("Couldn't change startup setting", ex.Message);
+        }
+    }
+
+    private void Tray_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_playbackLoading) return;
+        _ps.Settings.StartMinimized = StartMinSwitch.IsOn;
+        _ps.Settings.MinimizeToTray = MinTraySwitch.IsOn;
+        _ps.Settings.CloseToTray = CloseTraySwitch.IsOn;
+        _ps.SaveSettings();
+        MainWindow.Current.UpdateTray();
     }
 
     // ---------------- library / updates ----------------

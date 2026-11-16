@@ -34,10 +34,12 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
 
         _ps.Init(DispatcherQueue);
+        SetupWindowChrome();
         PlayerBar.Background = _barBrush;
         ApplyGlass();
         Root.ActualThemeChanged += (_, _) => ApplyGlass();
         VolumeSlider.Value = _ps.Settings.Volume * 100;
+        _volumeReady = true;
 
         _ps.TrackChanged += OnTrackChanged;
         _ps.PlaybackStateChanged += OnPlaybackStateChanged;
@@ -66,9 +68,12 @@ public sealed partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _exiting = true;
             _ps.SaveSettings();
-            _ps.Player.Dispose();
+            _tray?.Dispose();
+            _mini?.Close();
             _metaWindow?.Close();
+            _ps.Shutdown();
         };
     }
 
@@ -136,6 +141,7 @@ public sealed partial class MainWindow : Window
         var t = _ps.Current;
         UpdateVideoInfo();
         if (t == null) return;
+        _tray?.SetTooltip($"{t.Title} — {t.Artist}");
         BarTitle.Text = t.Title;
         BarArtist.Text = t.Artist;
         DurText.Text = t.DurationText;
@@ -149,6 +155,8 @@ public sealed partial class MainWindow : Window
 
     private void OnPlaybackStateChanged()
     {
+        UpdateVolumeIcon();
+        _mini?.Refresh();
         PlayIcon.Glyph = _ps.IsPlaying ? "" : "";
         ShuffleButton.IsChecked = _ps.Shuffle;
         RepeatButton.IsChecked = _ps.Repeat != RepeatMode.Off;
@@ -158,10 +166,9 @@ public sealed partial class MainWindow : Window
 
     private void UpdatePosition()
     {
-        if (_ps.Player.Source == null) return;
-        var session = _ps.Player.PlaybackSession;
-        var dur = session.NaturalDuration.TotalSeconds;
-        var pos = session.Position.TotalSeconds;
+        if (!_ps.HasMedia) return;
+        var dur = _ps.Duration.TotalSeconds;
+        var pos = _ps.Position.TotalSeconds;
 
         _settingSlider = true;
         if (dur > 0) { SeekSlider.Maximum = dur; SeekSlider.Value = Math.Min(pos, dur); }
@@ -180,7 +187,21 @@ public sealed partial class MainWindow : Window
     private void VolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
         _ps.SetVolume(e.NewValue / 100.0);
-        VolumeIcon.Glyph = e.NewValue == 0 ? "" : e.NewValue < 33 ? "" : e.NewValue < 66 ? "" : "";
+        if (_volumeReady && _ps.IsMuted && e.NewValue > 0) _ps.SetMuted(false); // moving the slider unmutes
+        UpdateVolumeIcon();
+    }
+
+    private void UpdateVolumeIcon()
+    {
+        var v = VolumeSlider.Value;
+        VolumeIcon.Glyph = _ps.IsMuted || v == 0 ? "\uE74F" : v < 33 ? "\uE993" : v < 66 ? "\uE994" : "\uE767";
+        ToolTipService.SetToolTip(VolumeButton, _ps.IsMuted ? "Muted (right-click to unmute)" : "Volume (right-click to mute)");
+    }
+
+    private void VolumeButton_RightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        _ps.ToggleMute();
+        e.Handled = true;
     }
 
     private void PlayPause_Click(object sender, RoutedEventArgs e) => _ps.TogglePlay();
@@ -258,6 +279,106 @@ public sealed partial class MainWindow : Window
     }
     private void Lyrics_Click(object sender, RoutedEventArgs e) => OpenNowPlaying();
     private void Queue_Click(object sender, RoutedEventArgs e) => NavigateTo(typeof(QueuePage));
+
+    // ---------------- tray, startup, mini player ----------------
+
+    private TrayIcon? _tray;
+    private MiniPlayerWindow? _mini;
+    private bool _exiting;
+    private bool _volumeReady;
+    private static string IconPath => Path.Combine(AppContext.BaseDirectory, "Assets", "GlassPlayer.ico");
+
+    private void SetupWindowChrome()
+    {
+        try { AppWindow.SetIcon(IconPath); } catch { }
+        StartupService.Refresh();
+
+        _tray = new TrayIcon(WinRT.Interop.WindowNative.GetWindowHandle(this), IconPath);
+        _tray.IsPlaying = () => _ps.IsPlaying;
+        _tray.Activated += ShowFromTray;
+        _tray.Command += cmd =>
+        {
+            switch (cmd)
+            {
+                case TrayIcon.CmdShow: ShowFromTray(); break;
+                case TrayIcon.CmdPlayPause: _ps.TogglePlay(); break;
+                case TrayIcon.CmdNext: _ps.Next(); break;
+                case TrayIcon.CmdPrevious: _ps.Previous(); break;
+                case TrayIcon.CmdExit: ExitApp(); break;
+            }
+        };
+        UpdateTray();
+
+        AppWindow.Changed += (_, _) =>
+        {
+            if (_ps.Settings.MinimizeToTray && !_exiting && AppWindow.IsVisible
+                && AppWindow.Presenter is OverlappedPresenter op && op.State == OverlappedPresenterState.Minimized)
+                HideToTray();
+        };
+        AppWindow.Closing += (_, e) =>
+        {
+            if (_ps.Settings.CloseToTray && !_exiting)
+            {
+                e.Cancel = true;
+                HideToTray();
+            }
+        };
+    }
+
+    /// <summary>Tray icon is shown while a tray option is on (and always while the window is hidden).</summary>
+    public void UpdateTray()
+    {
+        if (_tray == null) return;
+        _tray.Visible = _ps.Settings.MinimizeToTray || _ps.Settings.CloseToTray;
+    }
+
+    private void HideToTray()
+    {
+        if (_tray != null) _tray.Visible = true;
+        AppWindow.Hide();
+    }
+
+    /// <summary>Started by "Start with Windows": go straight to the tray (or taskbar).</summary>
+    public void StartHidden()
+    {
+        Activate();
+        if (_ps.Settings.MinimizeToTray || _ps.Settings.CloseToTray) HideToTray();
+        else if (AppWindow.Presenter is OverlappedPresenter op) op.Minimize();
+    }
+
+    public void ShowFromTray()
+    {
+        if (_mini != null) { _mini.Activate(); return; }
+        AppWindow.Show();
+        if (AppWindow.Presenter is OverlappedPresenter op && op.State == OverlappedPresenterState.Minimized) op.Restore();
+        Activate();
+        UpdateTray();
+    }
+
+    public void ExitApp()
+    {
+        _exiting = true;
+        _mini?.Close();
+        Close();
+    }
+
+    private void MiniPlayer_Click(object sender, RoutedEventArgs e) => OpenMiniPlayer();
+
+    public void OpenMiniPlayer()
+    {
+        if (_fullscreen) SetFullscreen(false);
+        if (_mini == null)
+        {
+            _mini = new MiniPlayerWindow();
+            _mini.Closed += (_, _) =>
+            {
+                _mini = null;
+                if (!_exiting) ShowFromTray();
+            };
+        }
+        _mini.Activate();
+        AppWindow.Hide();
+    }
 
     // ---------------- appearance ----------------
 

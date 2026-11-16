@@ -100,8 +100,8 @@ public sealed partial class NowPlayingPage : Page
 
     private void Highlight()
     {
-        if (!_synced || _lines.Count == 0 || _ps.Player.Source == null) return;
-        var pos = _ps.Player.PlaybackSession.Position;
+        if (!_synced || _lines.Count == 0 || !_ps.HasMedia) return;
+        var pos = _ps.Position;
         int idx = -1;
         for (int i = 0; i < _lines.Count; i++)
         {

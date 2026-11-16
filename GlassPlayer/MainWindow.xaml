@@ -184,8 +184,9 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6" VerticalAlignment="Center">
-                    <Button Width="40" Height="40" Padding="0" CornerRadius="20" Background="Transparent" BorderThickness="0"
-                            ToolTipService.ToolTip="Volume">
+                    <Button x:Name="VolumeButton" Width="40" Height="40" Padding="0" CornerRadius="20" Background="Transparent" BorderThickness="0"
+                            RightTapped="VolumeButton_RightTapped"
+                            ToolTipService.ToolTip="Volume (right-click to mute)">
                         <FontIcon x:Name="VolumeIcon" Glyph="&#xE767;" FontSize="16"/>
                         <Button.Flyout>
                             <Flyout Placement="Top">
@@ -204,6 +205,10 @@
                     <Button Width="40" Height="40" Padding="0" CornerRadius="20" Background="Transparent" BorderThickness="0"
                             Click="Queue_Click" ToolTipService.ToolTip="Play queue">
                         <FontIcon Glyph="&#xE90B;" FontSize="16"/>
+                    </Button>
+                    <Button Width="40" Height="40" Padding="0" CornerRadius="20" Background="Transparent" BorderThickness="0"
+                            Click="MiniPlayer_Click" ToolTipService.ToolTip="Mini player">
+                        <FontIcon Glyph="&#xE8A7;" FontSize="16"/>
                     </Button>
                 </StackPanel>
             </Grid>

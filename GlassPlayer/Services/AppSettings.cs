@@ -12,6 +12,10 @@ public class AppSettings
     public double Volume { get; set; } = 0.8;
     public List<string> Recent { get; set; } = new(); // album keys, most recent first
     public GlassSettings Glass { get; set; } = new();
+    public PlaybackSettings Playback { get; set; } = new();
+    public bool StartMinimized { get; set; } = true;   // when launched by "Start with Windows"
+    public bool MinimizeToTray { get; set; }
+    public bool CloseToTray { get; set; }
 
     public static string DataDir
     {
@@ -58,4 +62,29 @@ public class GlassSettings
     public double Luminosity { get; set; } = 0.5;  // "frosting"
     public double SurfaceOpacity { get; set; } = 0.5;
     public bool KeepActive { get; set; } = true;
+}
+
+public class PlaybackSettings
+{
+    public bool Muted { get; set; }
+    public bool CrossfadeEnabled { get; set; }
+    public double CrossfadeSeconds { get; set; } = 5;
+    public bool EqEnabled { get; set; }
+    public string EqPreset { get; set; } = "Flat";
+    public double[] EqGains { get; set; } = new double[10];
+
+    // gains in dB for 31, 62, 125, 250, 500, 1k, 2k, 4k, 8k, 16k Hz
+    public static readonly Dictionary<string, double[]> Presets = new()
+    {
+        ["Flat"] = new double[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        ["Bass boost"] = new double[] { 7, 6, 5, 3, 1, 0, 0, 0, 0, 0 },
+        ["Treble boost"] = new double[] { 0, 0, 0, 0, 0, 1, 3, 5, 6, 7 },
+        ["Rock"] = new double[] { 5, 4, 3, 1, -1, -1, 1, 3, 4, 5 },
+        ["Pop"] = new double[] { -1, 0, 2, 4, 5, 4, 2, 0, -1, -1 },
+        ["Jazz"] = new double[] { 4, 3, 1, 2, -1, -1, 0, 1, 3, 4 },
+        ["Classical"] = new double[] { 5, 4, 3, 2, -1, -1, 0, 2, 3, 4 },
+        ["Electronic"] = new double[] { 6, 5, 2, 0, -2, 2, 1, 2, 5, 6 },
+        ["Vocal"] = new double[] { -2, -3, -2, 1, 4, 5, 4, 2, 0, -1 },
+        ["Loudness"] = new double[] { 6, 4, 0, 0, -2, 0, -1, -4, 5, 2 },
+    };
 }

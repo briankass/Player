@@ -20,7 +20,13 @@ public sealed class PlayerService
     public List<VideoInfo> Videos { get; private set; } = new();
     public List<string> OfflineFolders { get; private set; } = new();
     public AppSettings Settings { get; private set; } = new();
+    /// <summary>Windows media player: used for video, and for the system media controls.</summary>
     public MediaPlayer Player { get; } = new();
+    /// <summary>NAudio engine: music, with equalizer and crossfade.</summary>
+    public AudioEngine Audio { get; } = new();
+    private SystemMediaTransportControls? _smtc;
+    private DispatcherQueueTimer? _tick;
+    private bool _crossfading;
 
     public List<Track> Queue { get; private set; } = new();
     private List<Track> _unshuffled = new();
@@ -36,7 +42,12 @@ public sealed class PlayerService
     public bool IsScanning { get; private set; }
     public string LastError { get; private set; } = "";
 
-    public bool IsPlaying => Player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing;
+    private bool CurrentIsVideo => Current?.IsVideo == true;
+    public bool IsPlaying => CurrentIsVideo ? Player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing : Audio.IsPlaying;
+    public bool HasMedia => CurrentIsVideo ? Player.Source != null : Audio.HasTrack;
+    public TimeSpan Position => CurrentIsVideo ? Player.PlaybackSession.Position : Audio.Position;
+    public TimeSpan Duration => CurrentIsVideo ? Player.PlaybackSession.NaturalDuration : Audio.Duration;
+    public bool IsMuted => Settings.Playback.Muted;
 
     public event Action? TrackChanged;
     public event Action? PlaybackStateChanged;
@@ -62,7 +73,13 @@ public sealed class PlayerService
 
         Player.AutoPlay = false;
         Player.Volume = Settings.Volume;
-        Player.MediaEnded += (_, _) => _ui.TryEnqueue(OnEnded);
+        Player.IsMuted = Settings.Playback.Muted;
+        Audio.Volume = Settings.Volume;
+        Audio.Muted = Settings.Playback.Muted;
+        ApplyEqualizer();
+
+        Audio.Ended += () => _ui.TryEnqueue(() => { if (!_crossfading && !CurrentIsVideo) OnEnded(); });
+        Player.MediaEnded += (_, _) => _ui.TryEnqueue(() => { if (CurrentIsVideo) OnEnded(); });
         Player.MediaOpened += (_, _) =>
         {
             // resume videos where they were left
@@ -72,17 +89,82 @@ public sealed class PlayerService
         Player.MediaFailed += (_, e) => _ui.TryEnqueue(() =>
         {
             LastError = e.ErrorMessage;
-            PlaybackStateChanged?.Invoke();
+            NotifyState();
         });
-        Player.PlaybackSession.PlaybackStateChanged += (_, _) => _ui.TryEnqueue(() => PlaybackStateChanged?.Invoke());
+        Player.PlaybackSession.PlaybackStateChanged += (_, _) => _ui.TryEnqueue(NotifyState);
 
-        // media keys + the Windows media flyout
-        var cm = Player.CommandManager;
-        cm.IsEnabled = true;
-        cm.NextBehavior.EnablingRule = MediaCommandEnablingRule.Always;
-        cm.PreviousBehavior.EnablingRule = MediaCommandEnablingRule.Always;
-        cm.NextReceived += (_, e) => { e.Handled = true; _ui.TryEnqueue(Next); };
-        cm.PreviousReceived += (_, e) => { e.Handled = true; _ui.TryEnqueue(Previous); };
+        // media keys + the Windows media flyout, driven by us for both music and video
+        try
+        {
+            Player.CommandManager.IsEnabled = false;
+            _smtc = Player.SystemMediaTransportControls;
+            _smtc.IsEnabled = true;
+            _smtc.IsPlayEnabled = _smtc.IsPauseEnabled = _smtc.IsNextEnabled = _smtc.IsPreviousEnabled = true;
+            _smtc.ButtonPressed += (_, e) => _ui.TryEnqueue(() =>
+            {
+                switch (e.Button)
+                {
+                    case SystemMediaTransportControlsButton.Play: if (!IsPlaying) TogglePlay(); break;
+                    case SystemMediaTransportControlsButton.Pause: if (IsPlaying) TogglePlay(); break;
+                    case SystemMediaTransportControlsButton.Next: Next(); break;
+                    case SystemMediaTransportControlsButton.Previous: Previous(); break;
+                }
+            });
+        }
+        catch
+        {
+            _smtc = null;
+        }
+
+        _tick = ui.CreateTimer();
+        _tick.Interval = TimeSpan.FromMilliseconds(250);
+        _tick.Tick += (_, _) => CheckCrossfade();
+        _tick.Start();
+    }
+
+    public void Shutdown()
+    {
+        _tick?.Stop();
+        Audio.Dispose();
+        Player.Dispose();
+    }
+
+    private void NotifyState()
+    {
+        PlaybackStateChanged?.Invoke();
+        if (_smtc != null)
+            _smtc.PlaybackStatus = IsPlaying ? MediaPlaybackStatus.Playing
+                : HasMedia ? MediaPlaybackStatus.Paused : MediaPlaybackStatus.Stopped;
+    }
+
+    public void ApplyEqualizer() => Audio.SetEqualizer(Settings.Playback.EqEnabled, Settings.Playback.EqGains);
+
+    public void ToggleMute() => SetMuted(!Settings.Playback.Muted);
+
+    public void SetMuted(bool muted)
+    {
+        Settings.Playback.Muted = muted;
+        Audio.Muted = muted;
+        Player.IsMuted = muted;
+        Settings.Save();
+        PlaybackStateChanged?.Invoke();
+    }
+
+    private void CheckCrossfade()
+    {
+        var p = Settings.Playback;
+        if (!p.CrossfadeEnabled || _crossfading || Current == null || CurrentIsVideo || !Audio.IsPlaying) return;
+        if (Repeat == RepeatMode.One) return;
+        int next = Index + 1 < Queue.Count ? Index + 1 : (Repeat == RepeatMode.All ? 0 : -1);
+        if (next < 0 || Queue[next].IsVideo) return;
+        var dur = Audio.Duration.TotalSeconds;
+        if (dur < p.CrossfadeSeconds * 2 + 2) return; // very short tracks: just play through
+        if (Audio.Remaining.TotalSeconds <= p.CrossfadeSeconds)
+        {
+            _crossfading = true;
+            Index = next;
+            _ = LoadCurrentAsync(p.CrossfadeSeconds);
+        }
     }
 
     public void SaveSettings() => Settings.Save();
@@ -269,7 +351,35 @@ public sealed class PlayerService
     }
 
     public bool IsCurrentPath(string path) =>
-        Player.Source != null && Current != null && Current.Path.Equals(path, StringComparison.OrdinalIgnoreCase);
+        HasMedia && Current != null && Current.Path.Equals(path, StringComparison.OrdinalIgnoreCase);
+
+    private async Task UpdateSmtcAsync(Track track)
+    {
+        if (_smtc == null) return;
+        try
+        {
+            var du = _smtc.DisplayUpdater;
+            du.ClearAll();
+            if (track.IsVideo)
+            {
+                du.Type = MediaPlaybackType.Video;
+                du.VideoProperties.Title = track.Title;
+                du.VideoProperties.Subtitle = track.Artist;
+            }
+            else
+            {
+                du.Type = MediaPlaybackType.Music;
+                du.MusicProperties.Title = track.Title;
+                du.MusicProperties.Artist = track.Artist;
+                du.MusicProperties.AlbumTitle = track.Album;
+            }
+            var art = await GetArtPathAsync(track);
+            if (art != null)
+                du.Thumbnail = RandomAccessStreamReference.CreateFromFile(await StorageFile.GetFileFromPathAsync(art));
+            du.Update();
+        }
+        catch { }
+    }
 
     // ---------------- queue ----------------
 
@@ -382,13 +492,21 @@ public sealed class PlayerService
 
     public void TogglePlay()
     {
-        if (Player.Source == null)
+        if (!HasMedia)
         {
             if (Current != null) _ = LoadCurrentAsync();
             else if (Library.Tracks.Count > 0) PlayList(Library.Tracks, 0, shuffle: true);
             return;
         }
-        if (IsPlaying) Player.Pause(); else Player.Play();
+        if (CurrentIsVideo)
+        {
+            if (IsPlaying) Player.Pause(); else Player.Play();
+        }
+        else
+        {
+            if (Audio.IsPlaying) Audio.Pause(); else Audio.Play();
+            NotifyState();
+        }
     }
 
     public void Next()
@@ -401,21 +519,22 @@ public sealed class PlayerService
     public void Previous()
     {
         if (Queue.Count == 0) return;
-        if (Player.PlaybackSession.Position.TotalSeconds > 3 || Index == 0)
-            Player.PlaybackSession.Position = TimeSpan.Zero;
-        else
-            PlayAt(Index - 1);
+        if (Position.TotalSeconds > 3 || Index == 0) Seek(TimeSpan.Zero);
+        else PlayAt(Index - 1);
     }
 
     public void Seek(TimeSpan position)
     {
-        if (Player.Source != null) Player.PlaybackSession.Position = position;
+        if (CurrentIsVideo) { if (Player.Source != null) Player.PlaybackSession.Position = position; }
+        else Audio.Seek(position);
     }
 
     public void SetVolume(double v)
     {
-        Player.Volume = Math.Clamp(v, 0, 1);
-        Settings.Volume = Player.Volume;
+        v = Math.Clamp(v, 0, 1);
+        Player.Volume = v;
+        Audio.Volume = v;
+        Settings.Volume = v;
     }
 
     private void OnEnded()
@@ -429,57 +548,56 @@ public sealed class PlayerService
         if (Repeat == RepeatMode.One) { PlayAt(Index); return; }
         if (Index + 1 < Queue.Count) PlayAt(Index + 1);
         else if (Repeat == RepeatMode.All && Queue.Count > 0) PlayAt(0);
-        else PlaybackStateChanged?.Invoke();
+        else
+        {
+            if (!CurrentIsVideo) Audio.Stop(); // end of the queue: Play starts this song again
+            NotifyState();
+        }
     }
 
-    private async Task LoadCurrentAsync()
+    private async Task LoadCurrentAsync(double fadeSeconds = 0)
     {
         var track = Current;
-        if (track == null) return;
+        if (track == null) { _crossfading = false; return; }
         LastError = "";
         TrackChanged?.Invoke();
 
         try
         {
-            var file = await StorageFile.GetFileFromPathAsync(track.Path);
-            if (!ReferenceEquals(track, Current)) return; // user skipped meanwhile
-            var source = MediaSource.CreateFromStorageFile(file);
-            if (track.IsVideo) await AddExternalSubtitlesAsync(source, track.Path);
-            var item = new MediaPlaybackItem(source);
-
-            var props = item.GetDisplayProperties();
             if (track.IsVideo)
             {
-                props.Type = MediaPlaybackType.Video;
-                props.VideoProperties.Title = track.Title;
-                props.VideoProperties.Subtitle = track.Artist;
+                Audio.Stop();
+                var file = await StorageFile.GetFileFromPathAsync(track.Path);
+                if (!ReferenceEquals(track, Current)) return; // user skipped meanwhile
+                var source = MediaSource.CreateFromStorageFile(file);
+                await AddExternalSubtitlesAsync(source, track.Path);
+                var item = new MediaPlaybackItem(source);
+                if (!ReferenceEquals(track, Current)) return;
+                _pendingSeek = Settings.VideoPositions.TryGetValue(track.Path, out var resume)
+                    ? TimeSpan.FromSeconds(resume)
+                    : null;
+                Player.Source = item;
+                Player.Play();
             }
             else
             {
-                props.Type = MediaPlaybackType.Music;
-                props.MusicProperties.Title = track.Title;
-                props.MusicProperties.Artist = track.Artist;
-                props.MusicProperties.AlbumTitle = track.Album;
+                if (Player.Source != null) { Player.Pause(); Player.Source = null; }
+                var path = track.Path;
+                var deck = await Task.Run(() => AudioEngine.Open(path)); // may be slow on a NAS
+                if (!ReferenceEquals(track, Current)) { deck.Dispose(); return; }
+                Audio.Start(deck, fadeSeconds);
+                NotifyState();
             }
-            var art = await GetArtPathAsync(track);
-            if (art != null)
-            {
-                try { props.Thumbnail = RandomAccessStreamReference.CreateFromFile(await StorageFile.GetFileFromPathAsync(art)); }
-                catch { }
-            }
-            item.ApplyDisplayProperties(props);
-
-            if (!ReferenceEquals(track, Current)) return;
-            _pendingSeek = track.IsVideo && Settings.VideoPositions.TryGetValue(track.Path, out var resume)
-                ? TimeSpan.FromSeconds(resume)
-                : null;
-            Player.Source = item;
-            Player.Play();
+            await UpdateSmtcAsync(track);
         }
         catch (Exception ex)
         {
-            LastError = "Can't open file: " + ex.Message;
-            PlaybackStateChanged?.Invoke();
+            LastError = "Can't play file: " + ex.Message;
+            NotifyState();
+        }
+        finally
+        {
+            _crossfading = false;
         }
 
         var album = track.IsVideo ? null : AlbumOf(track);

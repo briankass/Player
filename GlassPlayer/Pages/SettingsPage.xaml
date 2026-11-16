@@ -217,6 +217,112 @@
                 </StackPanel>
             </Border>
 
+            <TextBlock Text="Playback" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4"/>
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="14">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE8B1;" FontSize="20"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Crossfade"/>
+                            <TextBlock Text="Blend the end of one song into the start of the next (music only)" Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <ToggleSwitch x:Name="CrossfadeSwitch" Grid.Column="2" OnContent="" OffContent="" MinWidth="0" Toggled="Crossfade_Changed"/>
+                    </Grid>
+                    <Grid ColumnSpacing="16" Margin="36,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="56"/>
+                        </Grid.ColumnDefinitions>
+                        <Slider x:Name="CrossfadeSlider" Minimum="1" Maximum="12" StepFrequency="1" ValueChanged="CrossfadeSlider_ValueChanged"/>
+                        <TextBlock x:Name="CrossfadeValue" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right" Opacity="0.7"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="14">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE9E9;" FontSize="20"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Equalizer"/>
+                            <TextBlock Text="10 bands, ±12 dB (music only)" Opacity="0.7" FontSize="12"/>
+                        </StackPanel>
+                        <ComboBox x:Name="EqPresetBox" Grid.Column="2" MinWidth="150" VerticalAlignment="Center" Margin="0,0,12,0"
+                                  SelectionChanged="EqPreset_Changed"/>
+                        <ToggleSwitch x:Name="EqSwitch" Grid.Column="3" OnContent="" OffContent="" MinWidth="0" Toggled="Eq_Toggled"/>
+                    </Grid>
+                    <Grid x:Name="EqBands" Margin="36,0,0,0" ColumnSpacing="4"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Startup &amp; tray" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4"/>
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="16">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE7E8;" FontSize="20"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Start with Windows"/>
+                            <TextBlock Text="Open Glass Player when you sign in" Opacity="0.7" FontSize="12"/>
+                        </StackPanel>
+                        <ToggleSwitch x:Name="StartupSwitch" Grid.Column="2" OnContent="" OffContent="" MinWidth="0" Toggled="Startup_Toggled"/>
+                    </Grid>
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE921;" FontSize="20"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Start minimized"/>
+                            <TextBlock Text="When started with Windows, stay out of the way (in the tray if that's on)" Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <ToggleSwitch x:Name="StartMinSwitch" Grid.Column="2" OnContent="" OffContent="" MinWidth="0" Toggled="Tray_Toggled"/>
+                    </Grid>
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE73F;" FontSize="20"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Minimize to system tray"/>
+                            <TextBlock Text="Minimizing hides the window; click the tray icon to bring it back" Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <ToggleSwitch x:Name="MinTraySwitch" Grid.Column="2" OnContent="" OffContent="" MinWidth="0" Toggled="Tray_Toggled"/>
+                    </Grid>
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE711;" FontSize="20"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Close to system tray"/>
+                            <TextBlock Text="The close button keeps music playing in the tray. Use Exit in the tray menu to quit." Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <ToggleSwitch x:Name="CloseTraySwitch" Grid.Column="2" OnContent="" OffContent="" MinWidth="0" Toggled="Tray_Toggled"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <TextBlock Text="About" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4"/>
             <Border Style="{StaticResource Card}">
                 <Grid ColumnSpacing="16">
