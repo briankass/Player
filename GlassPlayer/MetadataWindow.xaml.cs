@@ -13,12 +13,12 @@ public sealed partial class MetadataWindow : Window
 {
     private readonly LibraryService _library;
     private readonly MetadataService _meta = new();
-    private readonly Action _onLibraryChanged;
+    private readonly Action<List<string>> _onLibraryChanged;
     private readonly Func<string, bool> _isInUse;
     private List<FixItem> _items = new();
     private CancellationTokenSource? _cts;
 
-    public MetadataWindow(LibraryService library, Action onLibraryChanged, Func<string, bool> isInUse)
+    public MetadataWindow(LibraryService library, Action<List<string>> onLibraryChanged, Func<string, bool> isInUse)
     {
         InitializeComponent();
         _library = library;
@@ -254,6 +254,7 @@ public sealed partial class MetadataWindow : Window
 
         ApplyButton.IsEnabled = SearchButton.IsEnabled = false;
         int ok = 0, failed = 0;
+        var written = new List<string>();
         foreach (var item in chosen)
         {
             if (_isInUse(item.Path))
@@ -266,6 +267,7 @@ public sealed partial class MetadataWindow : Window
             if (error == null)
             {
                 ok++;
+                written.Add(item.Path);
                 item.Status = "Written ✓";
                 item.IsSelected = false;
                 var idx = _library.Tracks.FindIndex(t => t.Path.Equals(item.Path, StringComparison.OrdinalIgnoreCase));
@@ -284,7 +286,7 @@ public sealed partial class MetadataWindow : Window
         }
 
         _library.SaveIndex();
-        _onLibraryChanged();
+        _onLibraryChanged(written);
         ApplyButton.IsEnabled = SearchButton.IsEnabled = true;
     }
 

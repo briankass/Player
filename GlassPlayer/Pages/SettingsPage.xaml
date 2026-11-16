@@ -1,0 +1,105 @@
+<Page
+    x:Class="GlassPlayer.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+
+    <Page.Resources>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="20,16"/>
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer>
+        <StackPanel Padding="40,24,40,32" Spacing="8" MaxWidth="900" HorizontalAlignment="Left">
+            <TextBlock Text="Settings" Style="{StaticResource TitleLargeTextBlockStyle}" Margin="0,0,0,12"/>
+
+            <TextBlock Text="Library" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,4"/>
+            <Border Style="{StaticResource Card}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE8B7;" FontSize="20"/>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Music folder"/>
+                        <TextBlock x:Name="FolderText" Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="ScanText" Opacity="0.7" FontSize="12"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button x:Name="RescanButton" Content="Rescan" Click="Rescan_Click"/>
+                        <Button Content="Change folder" Style="{StaticResource AccentButtonStyle}" Click="ChangeFolder_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <Border Style="{StaticResource Card}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE8EC;" FontSize="20"/>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Fix metadata &amp; album art"/>
+                        <TextBlock Text="Find missing tags and covers on MusicBrainz and the Cover Art Archive" Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Column="2" Content="Open" Click="Metadata_Click" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="Appearance" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4"/>
+            <Border Style="{StaticResource Card}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE790;" FontSize="20"/>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Glass effect"/>
+                        <TextBlock Text="Mica tints with your wallpaper; Acrylic is see-through frosted glass" Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ComboBox x:Name="BackdropBox" Grid.Column="2" MinWidth="160" VerticalAlignment="Center"
+                              SelectionChanged="BackdropBox_SelectionChanged">
+                        <ComboBoxItem Content="Mica"/>
+                        <ComboBoxItem Content="Mica Alt"/>
+                        <ComboBoxItem Content="Acrylic"/>
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="About" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4"/>
+            <Border Style="{StaticResource Card}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE895;" FontSize="20"/>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock x:Name="VersionText"/>
+                        <TextBlock Text="Updates are checked automatically when the app starts" Opacity="0.7" FontSize="12"/>
+                    </StackPanel>
+                    <Button Grid.Column="2" Content="Check for updates" Click="Update_Click" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Credits"/>
+                    <TextBlock Opacity="0.7" FontSize="12" TextWrapping="Wrap"
+                               Text="Lyrics from LRCLIB (lrclib.net). Metadata from MusicBrainz, cover art from the Cover Art Archive. Tag reading and writing by TagLib#."/>
+                    <HyperlinkButton Content="Source code on GitHub" NavigateUri="https://github.com/briankass/Player" Padding="0"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

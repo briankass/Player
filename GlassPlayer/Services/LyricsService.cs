@@ -6,10 +6,25 @@ using GlassPlayer.Models;
 
 namespace GlassPlayer.Services;
 
-public class LyricLine
+public class LyricLine : System.ComponentModel.INotifyPropertyChanged
 {
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
     public TimeSpan Time { get; set; }
     public string Text { get; set; } = "";
+
+    private double _opacity = 1.0;
+    /// <summary>Dimmed for lines that aren't being sung, full for the current one.</summary>
+    public double Opacity
+    {
+        get => _opacity;
+        set
+        {
+            if (Math.Abs(_opacity - value) < 0.001) return;
+            _opacity = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Opacity)));
+        }
+    }
 }
 
 public class LyricsResult

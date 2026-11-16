@@ -1,0 +1,68 @@
+<Page
+    x:Class="GlassPlayer.Pages.ArtistPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:GlassPlayer.Models"
+    Background="Transparent">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Height="240" CornerRadius="8,0,0,0" RequestedTheme="Dark">
+            <Image x:Name="HeaderBg" Stretch="UniformToFill" VerticalAlignment="Center"/>
+            <Rectangle>
+                <Rectangle.Fill>
+                    <AcrylicBrush TintColor="#FF101010" TintOpacity="0.45" TintLuminosityOpacity="0.35" FallbackColor="#E0181818"/>
+                </Rectangle.Fill>
+            </Rectangle>
+            <Grid Padding="40,28" ColumnSpacing="28">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid Width="176" Height="176" CornerRadius="88" Background="#33FFFFFF">
+                    <TextBlock x:Name="InitialText" FontSize="64" Opacity="0.5" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Image x:Name="ArtistImage" Stretch="UniformToFill"/>
+                </Grid>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6">
+                    <TextBlock Text="ARTIST" FontSize="12" Opacity="0.7" CharacterSpacing="100"/>
+                    <TextBlock x:Name="ArtistName" Style="{StaticResource TitleLargeTextBlockStyle}" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="ArtistDetails" Opacity="0.7"/>
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,12,0,0">
+                        <Button Style="{StaticResource AccentButtonStyle}" Click="Play_Click" Padding="18,8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE768;" FontSize="14"/>
+                                <TextBlock Text="Play all"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Click="Shuffle_Click" Padding="18,8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE8B1;" FontSize="14"/>
+                                <TextBlock Text="Shuffle"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <GridView x:Name="AlbumsGrid" Grid.Row="1" Padding="34,16,34,24" SelectionMode="None"
+                  IsItemClickEnabled="True" ItemClick="AlbumsGrid_ItemClick">
+            <GridView.ItemTemplate>
+                <DataTemplate x:DataType="models:AlbumInfo">
+                    <StackPanel Width="184" Spacing="4" Padding="6">
+                        <Grid Width="172" Height="172" CornerRadius="8" Background="{ThemeResource ControlFillColorSecondaryBrush}">
+                            <FontIcon Glyph="&#xE93C;" FontSize="44" Opacity="0.35"/>
+                            <Image Source="{x:Bind Art, Mode=OneWay}" Stretch="UniformToFill"/>
+                        </Grid>
+                        <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,6,0,0"/>
+                        <TextBlock Text="{x:Bind Details}" Opacity="0.7" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </DataTemplate>
+            </GridView.ItemTemplate>
+        </GridView>
+    </Grid>
+</Page>
