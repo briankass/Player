@@ -5,14 +5,14 @@
 
     <Grid x:Name="Root">
         <Grid.RowDefinitions>
-            <RowDefinition Height="32"/>
+            <RowDefinition Height="36"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- album art tint behind everything -->
         <Image x:Name="BgArt" Grid.RowSpan="2" Stretch="UniformToFill" Opacity="0.35"/>
 
-        <Grid x:Name="DragBar" Padding="12,0,140,0">
+        <Grid x:Name="DragBar" Padding="14,0,140,0">
             <TextBlock Text="Glass Player" FontSize="12" Opacity="0.7" VerticalAlignment="Center"/>
         </Grid>
 
@@ -22,8 +22,8 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Grid Width="104" Height="104" CornerRadius="8" Background="{ThemeResource ControlFillColorSecondaryBrush}"
-                  VerticalAlignment="Center">
+            <Grid Width="112" Height="112" MinWidth="112" MinHeight="112" CornerRadius="8"
+                  Background="{ThemeResource ControlFillColorSecondaryBrush}" VerticalAlignment="Center">
                 <FontIcon Glyph="&#xEC4F;" FontSize="32" Opacity="0.5"/>
                 <Image x:Name="ArtImage" Stretch="UniformToFill"/>
             </Grid>

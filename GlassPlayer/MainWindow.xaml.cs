@@ -28,7 +28,7 @@ public sealed partial class MainWindow : Window
         Current = this;
         InitializeComponent();
         Title = "Glass Player";
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(1300, 860));
+        WindowHelper.ResizeLogical(this, 1300, 860);
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;

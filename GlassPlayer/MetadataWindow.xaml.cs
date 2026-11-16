@@ -25,7 +25,7 @@ public sealed partial class MetadataWindow : Window
         _onLibraryChanged = onLibraryChanged;
         _isInUse = isInUse;
         Title = "Fix metadata";
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(1000, 760));
+        Services.WindowHelper.ResizeLogical(this, 1000, 760);
         SystemBackdrop = new MicaBackdrop();
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleArea);

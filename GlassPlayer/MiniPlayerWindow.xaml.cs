@@ -22,7 +22,7 @@ public sealed partial class MiniPlayerWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(DragBar);
         try { AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "GlassPlayer.ico")); } catch { }
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(460, 190));
+        WindowHelper.ResizeLogical(this, 480, 200);
         if (AppWindow.Presenter is OverlappedPresenter op)
         {
             op.IsAlwaysOnTop = true;
