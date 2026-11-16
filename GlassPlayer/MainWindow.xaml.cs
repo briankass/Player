@@ -111,8 +111,7 @@ public sealed partial class MainWindow : Window
         Nav.IsBackEnabled = ContentFrame.CanGoBack;
         var page = e.SourcePageType;
         VideoHost.Visibility = page == typeof(VideoPlayerPage) ? Visibility.Visible : Visibility.Collapsed;
-        _videoRect = default;
-        PlaceVideoWindow();
+        PlaceVideoWindow(force: true);
         if (page != typeof(VideoPlayerPage) && _fullscreen) SetFullscreen(false);
         if (page == typeof(SettingsPage)) { Nav.SelectedItem = Nav.SettingsItem; return; }
         var tag = page == typeof(HomePage) ? "home"
@@ -257,12 +256,20 @@ public sealed partial class MainWindow : Window
 
     private void VideoSurface_SizeChanged(object sender, SizeChangedEventArgs e) => PlaceVideoWindow();
 
-    private void PlaceVideoWindow()
+    private bool _videoWindowVisible;
+
+    /// <summary>Show the mpv child window exactly over the video area, or hide it when the video page isn't showing.</summary>
+    private void PlaceVideoWindow(bool force = false)
     {
         if (_videoHwnd == IntPtr.Zero || !_ps.VideoUsesMpv) return;
         if (!MpvVideoShowing || VideoSurface.ActualWidth < 2 || VideoSurface.ActualHeight < 2)
         {
-            if (_videoRect.Width > 0) { NativeWindows.Hide(_videoHwnd); _videoRect = default; }
+            if (_videoWindowVisible || force)
+            {
+                NativeWindows.Hide(_videoHwnd);
+                _videoWindowVisible = false;
+                _videoRect = default;
+            }
             return;
         }
         var scale = Content.XamlRoot?.RasterizationScale ?? 1.0;
@@ -270,9 +277,10 @@ public sealed partial class MainWindow : Window
         var rect = new Windows.Foundation.Rect(
             Math.Round(origin.X * scale), Math.Round(origin.Y * scale),
             Math.Round(VideoSurface.ActualWidth * scale), Math.Round(VideoSurface.ActualHeight * scale));
-        if (rect == _videoRect) return;
+        if (!force && _videoWindowVisible && rect == _videoRect) return;
         _videoRect = rect;
         NativeWindows.Place(_videoHwnd, (int)rect.X, (int)rect.Y, (int)rect.Width, (int)rect.Height);
+        _videoWindowVisible = true;
     }
 
     private void UpdateVideoInfo()
@@ -283,8 +291,7 @@ public sealed partial class MainWindow : Window
         VideoElement.Visibility = video && !_ps.VideoUsesMpv ? Visibility.Visible : Visibility.Collapsed;
         VideoTitle.Text = video ? t!.Title : "";
         AudioTrackButton.Visibility = _ps.VideoUsesMpv ? Visibility.Visible : Visibility.Collapsed;
-        _videoRect = default; // force re-placement
-        PlaceVideoWindow();
+        PlaceVideoWindow(force: true);
     }
 
     private void VideoHost_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e) =>
@@ -324,8 +331,7 @@ public sealed partial class MainWindow : Window
             }
         }
         FullscreenIcon.Glyph = on ? "\uE73F" : "\uE740";
-        _videoRect = default;
-        PlaceVideoWindow();
+        PlaceVideoWindow(force: true);
     }
 
     private void Subtitles_Click(object sender, RoutedEventArgs e)
