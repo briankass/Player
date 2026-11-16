@@ -53,6 +53,7 @@ public sealed partial class MainWindow : Window
         _library.LoadCache();
         SetVisible(_library.Tracks);
         Closed += (_, _) => _player.Dispose();
+        Root.Loaded += async (_, _) => await CheckForUpdatesAsync(silent: true);
     }
 
     // ---------- library ----------
@@ -287,7 +288,10 @@ public sealed partial class MainWindow : Window
 
     // ---------- updates ----------
 
-    private async void UpdateButton_Click(object sender, RoutedEventArgs e)
+    private async void UpdateButton_Click(object sender, RoutedEventArgs e) => await CheckForUpdatesAsync(silent: false);
+
+    /// <summary>silent: used at startup — only speaks up if an update exists, ignores errors.</summary>
+    private async Task CheckForUpdatesAsync(bool silent)
     {
         UpdateButton.IsEnabled = false;
         try
@@ -295,7 +299,8 @@ public sealed partial class MainWindow : Window
             var info = await _updater.CheckAsync();
             if (info == null || !_updater.IsNewer(info))
             {
-                await ShowMessage("Up to date", $"You're on the latest version ({UpdateService.CurrentVersion}).");
+                if (!silent)
+                    await ShowMessage("Up to date", $"You're on the latest version ({UpdateService.CurrentVersion}).");
                 return;
             }
 
@@ -315,7 +320,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            await ShowMessage("Update failed", ex.Message);
+            if (!silent) await ShowMessage("Update failed", ex.Message);
         }
         finally
         {
