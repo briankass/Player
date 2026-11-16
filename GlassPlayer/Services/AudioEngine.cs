@@ -70,7 +70,9 @@ public sealed class AudioEngine : IDisposable
             {
                 old.FadeTo(0, fadeSeconds, removeWhenSilent: true);
                 lock (_fadingOut) _fadingOut.Add(old);
-                old.Silenced += () => { lock (_fadingOut) _fadingOut.Remove(old); _mixer.RemoveMixerInput(old); old.Dispose(); };
+                // runs on the audio thread inside the mixer's Read: the mixer drops the input itself
+                // (it returned a short read), so only release it here - never touch the mixer's list
+                old.Silenced += () => { lock (_fadingOut) _fadingOut.Remove(old); old.Dispose(); };
             }
             else
             {
