@@ -34,6 +34,10 @@
                         IsTitleBarAutoPaddingEnabled="False"
                         BackRequested="Nav_BackRequested"
                         ItemInvoked="Nav_ItemInvoked">
+            <NavigationView.Resources>
+                <!-- opacity is driven by the "Panel opacity" slider so the glass can show through -->
+                <SolidColorBrush x:Key="NavigationViewContentBackground" Color="#1C1C1C" Opacity="0.3"/>
+            </NavigationView.Resources>
             <NavigationView.AutoSuggestBox>
                 <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search songs, albums, artists"
                                 QueryIcon="Find" QuerySubmitted="SearchBox_QuerySubmitted"/>
@@ -73,7 +77,6 @@
 
         <!-- Player bar -->
         <Grid x:Name="PlayerBar" Grid.Row="2" Padding="20,6,20,14" RowSpacing="2"
-              Background="{ThemeResource LayerFillColorDefaultBrush}"
               BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>

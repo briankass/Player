@@ -56,24 +56,120 @@
 
             <TextBlock Text="Appearance" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4"/>
             <Border Style="{StaticResource Card}">
-                <Grid ColumnSpacing="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <FontIcon Glyph="&#xE790;" FontSize="20"/>
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Text="Glass effect"/>
-                        <TextBlock Text="Mica tints with your wallpaper; Acrylic is see-through frosted glass" Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
-                    </StackPanel>
-                    <ComboBox x:Name="BackdropBox" Grid.Column="2" MinWidth="160" VerticalAlignment="Center"
-                              SelectionChanged="BackdropBox_SelectionChanged">
-                        <ComboBoxItem Content="Mica"/>
-                        <ComboBoxItem Content="Mica Alt"/>
-                        <ComboBoxItem Content="Acrylic"/>
-                    </ComboBox>
-                </Grid>
+                <StackPanel Spacing="18">
+                    <!-- effect -->
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE790;" FontSize="20"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Glass effect"/>
+                            <TextBlock Text="Acrylic blurs whatever is behind the window. Mica only picks up your wallpaper colours."
+                                       Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <ComboBox x:Name="EffectBox" Grid.Column="2" MinWidth="170" VerticalAlignment="Center"
+                                  SelectionChanged="Glass_Changed">
+                            <ComboBoxItem Content="Mica"/>
+                            <ComboBoxItem Content="Mica Alt"/>
+                            <ComboBoxItem Content="Acrylic"/>
+                            <ComboBoxItem Content="Acrylic (thin)"/>
+                            <ComboBoxItem Content="Solid (no glass)"/>
+                        </ComboBox>
+                    </Grid>
+
+                    <!-- tint -->
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE2B1;" FontSize="20"/>
+                        <StackPanel Grid.Column="1" Spacing="8">
+                            <TextBlock Text="Tint colour"/>
+                            <StackPanel x:Name="SwatchPanel" Orientation="Horizontal" Spacing="8"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <ComboBox x:Name="TintModeBox" MinWidth="170" SelectionChanged="Glass_Changed">
+                                <ComboBoxItem Content="Default"/>
+                                <ComboBoxItem Content="From album art"/>
+                                <ComboBoxItem Content="Custom colour"/>
+                            </ComboBox>
+                            <Button ToolTipService.ToolTip="Pick any colour">
+                                <FontIcon Glyph="&#xE790;" FontSize="14"/>
+                                <Button.Flyout>
+                                    <Flyout>
+                                        <ColorPicker x:Name="TintPicker" IsAlphaEnabled="False" IsMoreButtonVisible="False"
+                                                     IsColorChannelTextInputVisible="False" ColorChanged="TintPicker_ColorChanged"/>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- sliders -->
+                    <Grid ColumnSpacing="16" RowSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="200"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="48"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <FontIcon Glyph="&#xE771;" FontSize="20"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Tint strength"/>
+                            <TextBlock Text="How much colour is mixed in" Opacity="0.7" FontSize="12"/>
+                        </StackPanel>
+                        <Slider x:Name="TintSlider" Grid.Column="2" Minimum="0" Maximum="100" VerticalAlignment="Center" ValueChanged="Slider_Changed"/>
+                        <TextBlock x:Name="TintValue" Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right" Opacity="0.7"/>
+
+                        <FontIcon Grid.Row="1" Glyph="&#xE706;" FontSize="20"/>
+                        <StackPanel Grid.Row="1" Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Frosting"/>
+                            <TextBlock Text="Lower = clearer, more see-through" Opacity="0.7" FontSize="12"/>
+                        </StackPanel>
+                        <Slider x:Name="LumSlider" Grid.Row="1" Grid.Column="2" Minimum="0" Maximum="100" VerticalAlignment="Center" ValueChanged="Slider_Changed"/>
+                        <TextBlock x:Name="LumValue" Grid.Row="1" Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right" Opacity="0.7"/>
+
+                        <FontIcon Grid.Row="2" Glyph="&#xE8A9;" FontSize="20"/>
+                        <StackPanel Grid.Row="2" Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Panel opacity"/>
+                            <TextBlock Text="Darkness of the content area and player bar" Opacity="0.7" FontSize="12"/>
+                        </StackPanel>
+                        <Slider x:Name="SurfaceSlider" Grid.Row="2" Grid.Column="2" Minimum="0" Maximum="100" VerticalAlignment="Center" ValueChanged="Slider_Changed"/>
+                        <TextBlock x:Name="SurfaceValue" Grid.Row="2" Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right" Opacity="0.7"/>
+                    </Grid>
+
+                    <!-- keep active + reset -->
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE7F4;" FontSize="20"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Keep glass when the window isn't focused"/>
+                            <TextBlock Text="Windows normally switches to a flat colour when you click away" Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <ToggleSwitch x:Name="KeepActiveSwitch" Grid.Column="2" OnContent="" OffContent="" MinWidth="0" Toggled="Glass_Toggled"/>
+                    </Grid>
+
+                    <Grid>
+                        <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="36,0,140,0"
+                                   Text="No glass at all? Turn on Windows Settings › Personalization › Colors › Transparency effects. Energy saver also turns it off."/>
+                        <Button Content="Reset to defaults" HorizontalAlignment="Right" Click="ResetGlass_Click"/>
+                    </Grid>
+                </StackPanel>
             </Border>
 
             <TextBlock Text="About" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4"/>

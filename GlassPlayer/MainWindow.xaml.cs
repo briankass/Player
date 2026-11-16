@@ -1,6 +1,5 @@
 using GlassPlayer.Pages;
 using GlassPlayer.Services;
-using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -33,7 +32,9 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
 
         _ps.Init(DispatcherQueue);
-        ApplyBackdrop(_ps.Settings.Backdrop);
+        PlayerBar.Background = _barBrush;
+        ApplyGlass();
+        Root.ActualThemeChanged += (_, _) => ApplyGlass();
         VolumeSlider.Value = _ps.Settings.Volume * 100;
 
         _ps.TrackChanged += OnTrackChanged;
@@ -125,8 +126,9 @@ public sealed partial class MainWindow : Window
         DurText.Text = t.DurationText;
         BarArt.Source = null;
         var path = await _ps.GetArtPathAsync(t);
-        if (path != null && ReferenceEquals(t, _ps.Current))
-            BarArt.Source = new BitmapImage(new Uri(path)) { DecodePixelWidth = 128 };
+        if (!ReferenceEquals(t, _ps.Current)) return;
+        if (path != null) BarArt.Source = new BitmapImage(new Uri(path)) { DecodePixelWidth = 128 };
+        await UpdateAlbumTintAsync(path);
     }
 
     private void OnPlaybackStateChanged()
@@ -176,16 +178,68 @@ public sealed partial class MainWindow : Window
 
     // ---------------- appearance ----------------
 
-    public void ApplyBackdrop(int kind)
+    private GlassBackdrop? _glass;
+    private readonly SolidColorBrush _barBrush = new(Windows.UI.Color.FromArgb(255, 28, 28, 28));
+    private Windows.UI.Color? _albumTint;
+
+    private bool IsDark => Root.ActualTheme != ElementTheme.Light;
+
+    private Windows.UI.Color DefaultTint => IsDark
+        ? Windows.UI.Color.FromArgb(255, 32, 32, 32)
+        : Windows.UI.Color.FromArgb(255, 243, 243, 243);
+
+    /// <summary>Apply Settings.Glass to the window. Cheap enough to call on every slider tick.</summary>
+    public void ApplyGlass()
     {
-        SystemBackdrop = kind switch
+        var g = _ps.Settings.Glass;
+
+        if (g.Effect == 4)
         {
-            1 => new MicaBackdrop { Kind = MicaKind.BaseAlt },
-            2 => new DesktopAcrylicBackdrop(),
-            _ => new MicaBackdrop(),
-        };
-        _ps.Settings.Backdrop = kind;
-        _ps.Settings.Save();
+            SystemBackdrop = null;
+            _glass = null;
+            Root.Background = new SolidColorBrush(IsDark
+                ? Windows.UI.Color.FromArgb(255, 32, 32, 32)
+                : Windows.UI.Color.FromArgb(255, 243, 243, 243));
+        }
+        else
+        {
+            Root.Background = null;
+            if (_glass == null || _glass.Effect != g.Effect || _glass.KeepActive != g.KeepActive)
+            {
+                _glass = new GlassBackdrop(g.Effect, g.KeepActive);
+                SystemBackdrop = _glass;
+            }
+            var tint = g.TintMode switch
+            {
+                1 => _albumTint ?? DefaultTint,
+                2 => ColorUtil.ParseHex(g.CustomTint) ?? DefaultTint,
+                _ => DefaultTint,
+            };
+            _glass.Update(tint, g.TintOpacity, g.Luminosity);
+        }
+
+        // panels on top of the glass: content area + player bar
+        var surface = IsDark ? Windows.UI.Color.FromArgb(255, 28, 28, 28) : Windows.UI.Color.FromArgb(255, 251, 251, 251);
+        _barBrush.Color = surface;
+        _barBrush.Opacity = Math.Clamp(g.SurfaceOpacity + 0.1, 0, 1); // bar slightly more solid for legibility
+        if (Nav.Resources.TryGetValue("NavigationViewContentBackground", out var res) && res is SolidColorBrush content)
+        {
+            content.Color = surface;
+            content.Opacity = g.SurfaceOpacity;
+        }
+    }
+
+    private async Task UpdateAlbumTintAsync(string? artPath)
+    {
+        var c = artPath == null ? null : await ColorUtil.FromImageAsync(artPath);
+        if (c is Windows.UI.Color col && IsDark)
+        {
+            // keep it deep enough that white text stays readable
+            col = Windows.UI.Color.FromArgb(255, (byte)(col.R * 0.75), (byte)(col.G * 0.75), (byte)(col.B * 0.75));
+            c = col;
+        }
+        _albumTint = c;
+        if (_ps.Settings.Glass.TintMode == 1) ApplyGlass();
     }
 
     // ---------------- library folder ----------------
