@@ -19,6 +19,8 @@ public sealed partial class MainWindow : Window
     private readonly UpdateService _updater = new();
     private readonly DispatcherQueueTimer _timer;
     private bool _settingSlider;
+    private int _ticks;
+    private bool _fullscreen;
     private MetadataWindow? _metaWindow;
 
     public MainWindow()
@@ -42,7 +44,12 @@ public sealed partial class MainWindow : Window
 
         _timer = DispatcherQueue.CreateTimer();
         _timer.Interval = TimeSpan.FromMilliseconds(250);
-        _timer.Tick += (_, _) => UpdatePosition();
+        _timer.Tick += (_, _) =>
+        {
+            UpdatePosition();
+            if (++_ticks % 20 == 0 && _ps.IsPlaying) _ps.SaveVideoPosition(); // every ~5 s
+        };
+        VideoElement.SetMediaPlayer(_ps.Player);
         _timer.Start();
 
         ContentFrame.Navigate(typeof(HomePage));
@@ -54,8 +61,8 @@ public sealed partial class MainWindow : Window
             else
                 await CheckForUpdatesAsync(silent: true);
             // pick up new files on the NAS in the background
-            if (!string.IsNullOrEmpty(_ps.Settings.LibraryFolder) && Directory.Exists(_ps.Settings.LibraryFolder))
-                await _ps.ScanAsync(_ps.Settings.LibraryFolder);
+            if (_ps.Settings.MusicFolders.Count > 0 || _ps.Settings.VideoFolders.Count > 0)
+                await _ps.ScanAsync();
         };
         Closed += (_, _) =>
         {
@@ -80,7 +87,8 @@ public sealed partial class MainWindow : Window
         {
             case "home": NavigateTo(typeof(HomePage)); break;
             case "library": NavigateTo(typeof(LibraryPage)); break;
-            case "nowplaying": NavigateTo(typeof(NowPlayingPage)); break;
+            case "videos": NavigateTo(typeof(VideoLibraryPage)); break;
+            case "nowplaying": OpenNowPlaying(); break;
             case "queue": NavigateTo(typeof(QueuePage)); break;
             case "metadata": OpenMetadataFixer(); break;
         }
@@ -95,9 +103,12 @@ public sealed partial class MainWindow : Window
     {
         Nav.IsBackEnabled = ContentFrame.CanGoBack;
         var page = e.SourcePageType;
+        VideoHost.Visibility = page == typeof(VideoPlayerPage) ? Visibility.Visible : Visibility.Collapsed;
+        if (page != typeof(VideoPlayerPage) && _fullscreen) SetFullscreen(false);
         if (page == typeof(SettingsPage)) { Nav.SelectedItem = Nav.SettingsItem; return; }
         var tag = page == typeof(HomePage) ? "home"
-            : page == typeof(NowPlayingPage) ? "nowplaying"
+            : page == typeof(NowPlayingPage) || page == typeof(VideoPlayerPage) ? "nowplaying"
+            : page == typeof(VideoLibraryPage) ? "videos"
             : page == typeof(QueuePage) ? "queue"
             : "library"; // library, album, artist pages
         foreach (var item in Nav.MenuItems.OfType<NavigationViewItem>())
@@ -123,11 +134,13 @@ public sealed partial class MainWindow : Window
     private async void OnTrackChanged()
     {
         var t = _ps.Current;
+        UpdateVideoInfo();
         if (t == null) return;
         BarTitle.Text = t.Title;
         BarArtist.Text = t.Artist;
         DurText.Text = t.DurationText;
         BarArt.Source = null;
+        BarArtist.Text = t.IsVideo ? (t.Artist.Length > 0 ? t.Artist : "Video") : t.Artist;
         var path = await _ps.GetArtPathAsync(t);
         if (!ReferenceEquals(t, _ps.Current)) return;
         if (path != null) BarArt.Source = new BitmapImage(new Uri(path)) { DecodePixelWidth = 128 };
@@ -175,8 +188,76 @@ public sealed partial class MainWindow : Window
     private void Next_Click(object sender, RoutedEventArgs e) => _ps.Next();
     private void Shuffle_Click(object sender, RoutedEventArgs e) => _ps.ToggleShuffle();
     private void Repeat_Click(object sender, RoutedEventArgs e) => _ps.CycleRepeat();
-    private void NowPlayingButton_Click(object sender, RoutedEventArgs e) => NavigateTo(typeof(NowPlayingPage));
-    private void Lyrics_Click(object sender, RoutedEventArgs e) => NavigateTo(typeof(NowPlayingPage));
+    private void NowPlayingButton_Click(object sender, RoutedEventArgs e) => OpenNowPlaying();
+
+    public void OpenNowPlaying() =>
+        NavigateTo(_ps.Current?.IsVideo == true ? typeof(VideoPlayerPage) : typeof(NowPlayingPage));
+
+    // ---------------- video ----------------
+
+    private void UpdateVideoInfo()
+    {
+        var t = _ps.Current;
+        bool video = t?.IsVideo == true;
+        NoVideoText.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
+        VideoElement.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
+        VideoTitle.Text = video ? t!.Title : "";
+    }
+
+    private void VideoHost_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e) =>
+        SetFullscreen(!_fullscreen);
+
+    private void Fullscreen_Click(object sender, RoutedEventArgs e) => SetFullscreen(!_fullscreen);
+
+    private void Fullscreen_Accelerator(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (VideoHost.Visibility == Visibility.Visible) { SetFullscreen(!_fullscreen); args.Handled = true; }
+    }
+
+    private void ExitFullscreen_Accelerator(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_fullscreen) { SetFullscreen(false); args.Handled = true; }
+    }
+
+    private void SetFullscreen(bool on)
+    {
+        _fullscreen = on;
+        AppWindow.SetPresenter(on ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
+        Root.RowDefinitions[0].Height = on ? new GridLength(0) : new GridLength(48);
+        AppTitleBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        PlayerBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        Nav.IsPaneVisible = !on;
+        Nav.IsBackButtonVisible = on ? NavigationViewBackButtonVisible.Collapsed : NavigationViewBackButtonVisible.Visible;
+        UpdateBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        // in full screen, use the built-in auto-hiding controls
+        VideoElement.AreTransportControlsEnabled = on;
+        if (on)
+        {
+            VideoElement.TransportControls.IsFullWindowButtonVisible = false;
+            VideoElement.TransportControls.IsZoomButtonVisible = false;
+            VideoElement.TransportControls.IsCompact = false;
+        }
+        FullscreenIcon.Glyph = on ? "\uE73F" : "\uE740";
+    }
+
+    private void Subtitles_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new MenuFlyout();
+        var tracks = _ps.SubtitleTracks();
+        var off = new ToggleMenuFlyoutItem { Text = "Off" };
+        off.Click += (_, _) => _ps.SetSubtitle(null);
+        menu.Items.Add(off);
+        if (tracks.Count == 0)
+            menu.Items.Add(new MenuFlyoutItem { Text = "No subtitles found", IsEnabled = false });
+        foreach (var (index, label) in tracks)
+        {
+            var item = new MenuFlyoutItem { Text = label };
+            item.Click += (_, _) => _ps.SetSubtitle(index);
+            menu.Items.Add(item);
+        }
+        menu.ShowAt(SubtitleButton);
+    }
+    private void Lyrics_Click(object sender, RoutedEventArgs e) => OpenNowPlaying();
     private void Queue_Click(object sender, RoutedEventArgs e) => NavigateTo(typeof(QueuePage));
 
     // ---------------- appearance ----------------
@@ -265,13 +346,19 @@ public sealed partial class MainWindow : Window
 
     // ---------------- library folder ----------------
 
-    public async Task PickLibraryFolderAsync()
+    public async Task<string?> PickFolderAsync()
     {
         var picker = new FolderPicker();
         picker.FileTypeFilter.Add("*");
         WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
         var folder = await picker.PickSingleFolderAsync();
-        if (folder != null) await _ps.ScanAsync(folder.Path);
+        return folder?.Path;
+    }
+
+    public async Task AddLibraryFolderAsync(bool video)
+    {
+        var path = await PickFolderAsync();
+        if (path != null) await _ps.AddFolderAsync(video, path);
     }
 
     // ---------------- updates ----------------

@@ -20,22 +20,64 @@
 
             <TextBlock Text="Library" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,4"/>
             <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xEC4F;" FontSize="20"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Music folders"/>
+                            <TextBlock Text="Local folders, mapped drives or NAS paths like \\nas\music" Opacity="0.7" FontSize="12"/>
+                        </StackPanel>
+                        <Button Grid.Column="2" Style="{StaticResource AccentButtonStyle}" Click="AddMusicFolder_Click" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE710;" FontSize="12"/>
+                                <TextBlock Text="Add folder"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <StackPanel x:Name="MusicFolderList" Spacing="4" Margin="36,0,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE8B2;" FontSize="20"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Video folders"/>
+                            <TextBlock Text="MP4, MKV, AVI, MOV, WMV, WebM… Subtitles (.srt) next to a video are picked up automatically" Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Button Grid.Column="2" Style="{StaticResource AccentButtonStyle}" Click="AddVideoFolder_Click" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE710;" FontSize="12"/>
+                                <TextBlock Text="Add folder"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <StackPanel x:Name="VideoFolderList" Spacing="4" Margin="36,0,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <FontIcon Glyph="&#xE8B7;" FontSize="20"/>
+                    <FontIcon Glyph="&#xE72C;" FontSize="20"/>
                     <StackPanel Grid.Column="1">
-                        <TextBlock Text="Music folder"/>
-                        <TextBlock x:Name="FolderText" Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock x:Name="ScanText" Opacity="0.7" FontSize="12"/>
+                        <TextBlock Text="Library"/>
+                        <TextBlock x:Name="ScanText" Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
                     </StackPanel>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <Button x:Name="RescanButton" Content="Rescan" Click="Rescan_Click"/>
-                        <Button Content="Change folder" Style="{StaticResource AccentButtonStyle}" Click="ChangeFolder_Click"/>
-                    </StackPanel>
+                    <Button x:Name="RescanButton" Grid.Column="2" Content="Rescan all" Click="Rescan_Click" VerticalAlignment="Center"/>
                 </Grid>
             </Border>
             <Border Style="{StaticResource Card}">

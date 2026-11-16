@@ -14,6 +14,7 @@ public class Track
     public double DurationSeconds { get; set; }
     public bool HasArt { get; set; }
     public DateTime AddedUtc { get; set; }
+    public bool IsVideo { get; set; }
 
     [JsonIgnore]
     public string DurationText => FormatTime(DurationSeconds);

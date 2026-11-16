@@ -15,7 +15,10 @@ public sealed class PlayerService
 {
     public static PlayerService Instance { get; } = new();
 
-    public LibraryService Library { get; } = new();
+    public LibraryService Library { get; } = new(video: false);
+    public LibraryService VideoLibrary { get; } = new(video: true);
+    public List<VideoInfo> Videos { get; private set; } = new();
+    public List<string> OfflineFolders { get; private set; } = new();
     public AppSettings Settings { get; private set; } = new();
     public MediaPlayer Player { get; } = new();
 
@@ -39,10 +42,13 @@ public sealed class PlayerService
     public event Action? PlaybackStateChanged;
     public event Action? LibraryChanged;
     public event Action? QueueChanged;
+    public event Action? VideosChanged;
     public event Action<string>? ScanStatus;
 
     private DispatcherQueue _ui = null!;
     private int _artGeneration;
+    private int _thumbGeneration;
+    private TimeSpan? _pendingSeek;
     private readonly Random _rng = new();
 
     public void Init(DispatcherQueue ui)
@@ -50,11 +56,19 @@ public sealed class PlayerService
         _ui = ui;
         Settings = AppSettings.Load();
         Library.LoadCache();
+        VideoLibrary.LoadCache();
         RebuildViews();
+        RebuildVideos();
 
         Player.AutoPlay = false;
         Player.Volume = Settings.Volume;
         Player.MediaEnded += (_, _) => _ui.TryEnqueue(OnEnded);
+        Player.MediaOpened += (_, _) =>
+        {
+            // resume videos where they were left
+            if (_pendingSeek is TimeSpan seek) Player.PlaybackSession.Position = seek;
+            _pendingSeek = null;
+        };
         Player.MediaFailed += (_, e) => _ui.TryEnqueue(() =>
         {
             LastError = e.ErrorMessage;
@@ -138,6 +152,7 @@ public sealed class PlayerService
 
     public async Task<string?> GetArtPathAsync(Track track)
     {
+        if (track.IsVideo) return ThumbCache.Existing(track.Path) ?? await ThumbCache.CreateAsync(track.Path);
         var album = AlbumOf(track);
         if (album == null) return null;
         if (album.ArtPath != null) return album.ArtPath;
@@ -148,19 +163,26 @@ public sealed class PlayerService
         return path;
     }
 
-    public async Task ScanAsync(string folder)
+    public async Task ScanAsync()
     {
         if (IsScanning) return;
         IsScanning = true;
-        Settings.LibraryFolder = folder;
-        Settings.Save();
         try
         {
-            ScanStatus?.Invoke("Scanning…");
-            var progress = new Progress<int>(n => ScanStatus?.Invoke($"Scanning… {n} songs found"));
-            await Library.ScanAsync(folder, progress, CancellationToken.None);
+            ScanStatus?.Invoke("Scanning music…");
+            var p1 = new Progress<int>(n => ScanStatus?.Invoke($"Scanning music… {n} songs found"));
+            var off1 = await Library.ScanAsync(Settings.MusicFolders, p1, CancellationToken.None);
             RebuildViews();
-            ScanStatus?.Invoke($"{Library.Tracks.Count} songs in your library");
+
+            ScanStatus?.Invoke("Scanning videos…");
+            var p2 = new Progress<int>(n => ScanStatus?.Invoke($"Scanning videos… {n} found"));
+            var off2 = await VideoLibrary.ScanAsync(Settings.VideoFolders, p2, CancellationToken.None);
+            RebuildVideos();
+
+            OfflineFolders = off1.Concat(off2).ToList();
+            var msg = $"{Library.Tracks.Count} songs · {VideoLibrary.Tracks.Count} videos";
+            if (OfflineFolders.Count > 0) msg += $" · {OfflineFolders.Count} folder(s) offline, kept their files";
+            ScanStatus?.Invoke(msg);
         }
         catch (Exception ex)
         {
@@ -171,6 +193,71 @@ public sealed class PlayerService
             IsScanning = false;
         }
     }
+
+    public async Task AddFolderAsync(bool video, string path)
+    {
+        var list = video ? Settings.VideoFolders : Settings.MusicFolders;
+        if (list.Any(f => f.Equals(path, StringComparison.OrdinalIgnoreCase))) return;
+        list.Add(path);
+        Settings.Save();
+        await ScanAsync();
+    }
+
+    public async Task RemoveFolderAsync(bool video, string path)
+    {
+        var list = video ? Settings.VideoFolders : Settings.MusicFolders;
+        list.RemoveAll(f => f.Equals(path, StringComparison.OrdinalIgnoreCase));
+        Settings.Save();
+        await ScanAsync();
+    }
+
+    // ---------------- videos ----------------
+
+    public void RebuildVideos()
+    {
+        Videos = VideoLibrary.Tracks.Select(t => new VideoInfo
+        {
+            Track = t,
+            ThumbPath = ThumbCache.Existing(t.Path),
+            Progress = ProgressOf(t),
+        }).ToList();
+        VideosChanged?.Invoke();
+        _ = FillThumbsAsync();
+    }
+
+    private double ProgressOf(Track t) =>
+        t.DurationSeconds > 0 && Settings.VideoPositions.TryGetValue(t.Path, out var pos)
+            ? Math.Clamp(pos / t.DurationSeconds * 100, 0, 100)
+            : 0;
+
+    private async Task FillThumbsAsync()
+    {
+        var generation = ++_thumbGeneration;
+        foreach (var v in Videos.Where(v => v.ThumbPath == null && !ThumbCache.KnownMissing(v.Track.Path)).ToList())
+        {
+            if (generation != _thumbGeneration) return;
+            var p = await ThumbCache.CreateAsync(v.Track.Path);
+            if (p != null) v.ThumbPath = p;
+        }
+    }
+
+    /// <summary>Called every few seconds while a video plays.</summary>
+    public void SaveVideoPosition()
+    {
+        var t = Current;
+        if (t == null || !t.IsVideo || Player.Source == null) return;
+        var pos = Player.PlaybackSession.Position.TotalSeconds;
+        var dur = Player.PlaybackSession.NaturalDuration.TotalSeconds;
+        if (dur > 0 && t.DurationSeconds <= 0) t.DurationSeconds = dur;
+        if (pos < 30 || (dur > 0 && pos > dur - 60)) Settings.VideoPositions.Remove(t.Path); // barely started or finished
+        else Settings.VideoPositions[t.Path] = pos;
+        Settings.Save();
+        var info = Videos.FirstOrDefault(v => ReferenceEquals(v.Track, t));
+        if (info != null) info.Progress = ProgressOf(t);
+    }
+
+    public List<VideoInfo> ContinueWatching() =>
+        Videos.Where(v => v.Progress > 0).OrderByDescending(v => v.Progress).Take(12).ToList();
 
     /// <summary>Called by the metadata fixer after it rewrote tags on these files.</summary>
     public void OnTagsChanged(IReadOnlyCollection<string> paths)
@@ -333,6 +420,12 @@ public sealed class PlayerService
 
     private void OnEnded()
     {
+        if (Current is Track ended && ended.IsVideo)
+        {
+            Settings.VideoPositions.Remove(ended.Path);
+            var info = Videos.FirstOrDefault(v => ReferenceEquals(v.Track, ended));
+            if (info != null) info.Progress = 0;
+        }
         if (Repeat == RepeatMode.One) { PlayAt(Index); return; }
         if (Index + 1 < Queue.Count) PlayAt(Index + 1);
         else if (Repeat == RepeatMode.All && Queue.Count > 0) PlayAt(0);
@@ -350,13 +443,24 @@ public sealed class PlayerService
         {
             var file = await StorageFile.GetFileFromPathAsync(track.Path);
             if (!ReferenceEquals(track, Current)) return; // user skipped meanwhile
-            var item = new MediaPlaybackItem(MediaSource.CreateFromStorageFile(file));
+            var source = MediaSource.CreateFromStorageFile(file);
+            if (track.IsVideo) await AddExternalSubtitlesAsync(source, track.Path);
+            var item = new MediaPlaybackItem(source);
 
             var props = item.GetDisplayProperties();
-            props.Type = MediaPlaybackType.Music;
-            props.MusicProperties.Title = track.Title;
-            props.MusicProperties.Artist = track.Artist;
-            props.MusicProperties.AlbumTitle = track.Album;
+            if (track.IsVideo)
+            {
+                props.Type = MediaPlaybackType.Video;
+                props.VideoProperties.Title = track.Title;
+                props.VideoProperties.Subtitle = track.Artist;
+            }
+            else
+            {
+                props.Type = MediaPlaybackType.Music;
+                props.MusicProperties.Title = track.Title;
+                props.MusicProperties.Artist = track.Artist;
+                props.MusicProperties.AlbumTitle = track.Album;
+            }
             var art = await GetArtPathAsync(track);
             if (art != null)
             {
@@ -366,6 +470,9 @@ public sealed class PlayerService
             item.ApplyDisplayProperties(props);
 
             if (!ReferenceEquals(track, Current)) return;
+            _pendingSeek = track.IsVideo && Settings.VideoPositions.TryGetValue(track.Path, out var resume)
+                ? TimeSpan.FromSeconds(resume)
+                : null;
             Player.Source = item;
             Player.Play();
         }
@@ -375,7 +482,7 @@ public sealed class PlayerService
             PlaybackStateChanged?.Invoke();
         }
 
-        var album = AlbumOf(track);
+        var album = track.IsVideo ? null : AlbumOf(track);
         if (album != null)
         {
             Settings.Recent.Remove(album.Key);
@@ -383,5 +490,52 @@ public sealed class PlayerService
             if (Settings.Recent.Count > 30) Settings.Recent.RemoveRange(30, Settings.Recent.Count - 30);
             Settings.Save();
         }
+    }
+
+    private static async Task AddExternalSubtitlesAsync(MediaSource source, string videoPath)
+    {
+        var dir = Path.GetDirectoryName(videoPath);
+        if (dir == null) return;
+        var stem = Path.GetFileNameWithoutExtension(videoPath);
+        try
+        {
+            // movie.srt, movie.en.srt, movie.eng.vtt, ...
+            foreach (var sub in Directory.EnumerateFiles(dir, stem + "*")
+                         .Where(f => f.EndsWith(".srt", StringComparison.OrdinalIgnoreCase)
+                                  || f.EndsWith(".vtt", StringComparison.OrdinalIgnoreCase))
+                         .Take(8))
+            {
+                var file = await StorageFile.GetFileFromPathAsync(sub);
+                var stream = await file.OpenReadAsync();
+                var tts = TimedTextSource.CreateFromStream(stream);
+                source.ExternalTimedTextSources.Add(tts);
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>Subtitle/caption tracks of the current video: (index, label).</summary>
+    public List<(uint Index, string Label)> SubtitleTracks()
+    {
+        var list = new List<(uint, string)>();
+        if (Player.Source is not MediaPlaybackItem item) return list;
+        for (uint i = 0; i < item.TimedMetadataTracks.Count; i++)
+        {
+            var t = item.TimedMetadataTracks[(int)i];
+            if (t.TimedMetadataKind != TimedMetadataKind.Subtitle && t.TimedMetadataKind != TimedMetadataKind.Caption) continue;
+            var label = !string.IsNullOrWhiteSpace(t.Label) ? t.Label
+                : !string.IsNullOrWhiteSpace(t.Language) ? t.Language
+                : $"Track {i + 1}";
+            list.Add((i, label));
+        }
+        return list;
+    }
+
+    public void SetSubtitle(uint? index)
+    {
+        if (Player.Source is not MediaPlaybackItem item) return;
+        for (uint i = 0; i < item.TimedMetadataTracks.Count; i++)
+            item.TimedMetadataTracks.SetPresentationMode(i,
+                i == index ? TimedMetadataTrackPresentationMode.PlatformPresented : TimedMetadataTrackPresentationMode.Disabled);
     }
 }

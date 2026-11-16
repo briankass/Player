@@ -4,6 +4,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Grid x:Name="Root">
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Key="F11" Invoked="Fullscreen_Accelerator"/>
+            <KeyboardAccelerator Key="Escape" Invoked="ExitFullscreen_Accelerator"/>
+        </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="48"/>
             <RowDefinition Height="*"/>
@@ -53,6 +57,9 @@
                 <NavigationViewItem Content="Music library" Tag="library">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xEC4F;"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Content="Video library" Tag="videos">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8B2;"/></NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItemSeparator/>
                 <NavigationViewItem Content="Now playing" Tag="nowplaying">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE93C;"/></NavigationViewItem.Icon>
@@ -75,6 +82,35 @@
                 </Grid.RowDefinitions>
                 <InfoBar x:Name="UpdateBar" IsOpen="False" Severity="Informational" Margin="24,12,24,0"/>
                 <Frame x:Name="ContentFrame" Grid.Row="1" Navigated="ContentFrame_Navigated"/>
+
+                <!-- one video surface for the whole app; shown when the Video player page is active -->
+                <Grid x:Name="VideoHost" Grid.Row="1" Visibility="Collapsed" Background="Black"
+                      DoubleTapped="VideoHost_DoubleTapped">
+                    <MediaPlayerElement x:Name="VideoElement" AreTransportControlsEnabled="False" Stretch="Uniform"
+                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                    <TextBlock x:Name="NoVideoText" Text="No video playing. Pick one from the Video library."
+                               Foreground="White" Opacity="0.7" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Grid x:Name="VideoTopBar" VerticalAlignment="Top" Padding="20,12" RequestedTheme="Dark">
+                        <Grid.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#99000000" Offset="0"/>
+                                <GradientStop Color="#00000000" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Grid.Background>
+                        <TextBlock x:Name="VideoTitle" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" Margin="0,0,120,0"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+                            <Button x:Name="SubtitleButton" Width="40" Height="40" Padding="0" Background="Transparent" BorderThickness="0"
+                                    Click="Subtitles_Click" ToolTipService.ToolTip="Subtitles">
+                                <FontIcon Glyph="&#xE7F0;" FontSize="16"/>
+                            </Button>
+                            <Button Width="40" Height="40" Padding="0" Background="Transparent" BorderThickness="0"
+                                    Click="Fullscreen_Click" ToolTipService.ToolTip="Full screen (F11)">
+                                <FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="16"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
             </Grid>
         </NavigationView>
 

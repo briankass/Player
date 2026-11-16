@@ -43,8 +43,9 @@ public sealed partial class SettingsPage : Page
         LoadGlassControls();
         VersionText.Text = $"Glass Player {UpdateService.CurrentVersion}";
         _ps.ScanStatus += OnScanStatus;
-        ShowFolder();
-        ScanText.Text = _ps.IsScanning ? "Scanning…" : $"{_ps.Library.Tracks.Count} songs · {_ps.Albums.Count} albums · {_ps.Artists.Count} artists";
+        ShowFolders();
+        ScanText.Text = _ps.IsScanning ? "Scanning…"
+            : $"{_ps.Library.Tracks.Count} songs · {_ps.Albums.Count} albums · {_ps.Artists.Count} artists · {_ps.VideoLibrary.Tracks.Count} videos";
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -133,21 +134,61 @@ public sealed partial class SettingsPage : Page
     private void OnScanStatus(string s)
     {
         ScanText.Text = s;
-        ShowFolder();
+        ShowFolders();
     }
 
-    private void ShowFolder()
+    private void ShowFolders()
     {
-        FolderText.Text = string.IsNullOrEmpty(_ps.Settings.LibraryFolder) ? "No folder chosen yet" : _ps.Settings.LibraryFolder;
-        RescanButton.IsEnabled = !string.IsNullOrEmpty(_ps.Settings.LibraryFolder);
+        FillFolderList(MusicFolderList, _ps.Settings.MusicFolders, video: false);
+        FillFolderList(VideoFolderList, _ps.Settings.VideoFolders, video: true);
+        RescanButton.IsEnabled = !_ps.IsScanning && (_ps.Settings.MusicFolders.Count + _ps.Settings.VideoFolders.Count) > 0;
     }
 
-    private async void ChangeFolder_Click(object sender, RoutedEventArgs e) => await MainWindow.Current.PickLibraryFolderAsync();
-
-    private async void Rescan_Click(object sender, RoutedEventArgs e)
+    private void FillFolderList(StackPanel panel, List<string> folders, bool video)
     {
-        if (!string.IsNullOrEmpty(_ps.Settings.LibraryFolder)) await _ps.ScanAsync(_ps.Settings.LibraryFolder);
+        panel.Children.Clear();
+        if (folders.Count == 0)
+        {
+            panel.Children.Add(new TextBlock { Text = "No folders yet", Opacity = 0.6, FontSize = 13 });
+            return;
+        }
+        foreach (var folder in folders.ToList())
+        {
+            var offline = _ps.OfflineFolders.Any(f => f.Equals(folder, StringComparison.OrdinalIgnoreCase));
+            var count = (video ? _ps.VideoLibrary.Tracks : _ps.Library.Tracks).Count(t => LibraryService.IsUnder(t.Path, folder));
+
+            var row = new Grid { ColumnSpacing = 12 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var text = new StackPanel();
+            text.Children.Add(new TextBlock { Text = folder, TextTrimming = TextTrimming.CharacterEllipsis });
+            text.Children.Add(new TextBlock
+            {
+                Text = (offline ? "Offline right now · " : "") + $"{count} {(video ? "videos" : "songs")}",
+                Opacity = 0.6,
+                FontSize = 12,
+            });
+            row.Children.Add(text);
+
+            var remove = new Button
+            {
+                Content = new FontIcon { Glyph = "\uE711", FontSize = 12 },
+                Padding = new Thickness(8),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            ToolTipService.SetToolTip(remove, "Remove from library (files are not deleted)");
+            remove.Click += async (_, _) => await _ps.RemoveFolderAsync(video, folder);
+            Grid.SetColumn(remove, 1);
+            row.Children.Add(remove);
+            panel.Children.Add(row);
+        }
     }
+
+    private async void AddMusicFolder_Click(object sender, RoutedEventArgs e) => await MainWindow.Current.AddLibraryFolderAsync(video: false);
+    private async void AddVideoFolder_Click(object sender, RoutedEventArgs e) => await MainWindow.Current.AddLibraryFolderAsync(video: true);
+
+    private async void Rescan_Click(object sender, RoutedEventArgs e) => await _ps.ScanAsync();
 
     private void Metadata_Click(object sender, RoutedEventArgs e) => MainWindow.Current.OpenMetadataFixer();
 

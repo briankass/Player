@@ -1,0 +1,9 @@
+<Page
+    x:Class="GlassPlayer.Pages.VideoPlayerPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+    <!-- The video itself is drawn by MainWindow's VideoHost (one MediaPlayerElement for the whole app).
+         This page only exists so the video player takes part in navigation and Back. -->
+    <Grid/>
+</Page>

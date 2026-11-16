@@ -54,5 +54,5 @@ public sealed partial class HomePage : Page
 
     private void ShuffleAll_Click(object sender, RoutedEventArgs e) => _ps.PlayList(_ps.Library.Tracks, 0, shuffle: true);
 
-    private async void ChooseFolder_Click(object sender, RoutedEventArgs e) => await MainWindow.Current.PickLibraryFolderAsync();
+    private async void ChooseFolder_Click(object sender, RoutedEventArgs e) => await MainWindow.Current.AddLibraryFolderAsync(video: false);
 }
