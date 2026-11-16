@@ -233,7 +233,6 @@ public sealed partial class MainWindow : Window
         VideoElement.AreTransportControlsEnabled = on;
         if (on)
         {
-            VideoElement.TransportControls.IsFullWindowButtonVisible = false;
             VideoElement.TransportControls.IsZoomButtonVisible = false;
             VideoElement.TransportControls.IsCompact = false;
         }
