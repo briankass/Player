@@ -39,7 +39,8 @@ public class LibraryService
             {
                 ct.ThrowIfCancellationRequested();
                 if (!Extensions.Contains(Path.GetExtension(file).ToLowerInvariant())) continue;
-                list.Add(existing.TryGetValue(file, out var cached) ? cached : ReadTrack(file));
+                // entries cached by older versions lack AddedUtc/AlbumArtist: re-read them once
+                list.Add(existing.TryGetValue(file, out var cached) && cached.AddedUtc != default ? cached : ReadTrack(file));
                 if (list.Count % 25 == 0) progress?.Report(list.Count);
             }
             return list;
