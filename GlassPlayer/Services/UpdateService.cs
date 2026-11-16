@@ -235,5 +235,4 @@ public class UpdateService
             return false;
         }
     }
-    }
 }
