@@ -182,6 +182,14 @@ public sealed partial class MainWindow : Window
     // ---------------- appearance ----------------
 
     private GlassBackdrop? _glass;
+    private SeeThroughBackdrop? _seeThrough;
+
+    private Windows.UI.Color CurrentTint(GlassSettings g) => g.TintMode switch
+    {
+        1 => _albumTint ?? DefaultTint,
+        2 => ColorUtil.ParseHex(g.CustomTint) ?? DefaultTint,
+        _ => DefaultTint,
+    };
     private readonly SolidColorBrush _barBrush = new(Windows.UI.Color.FromArgb(255, 28, 28, 28));
     private Windows.UI.Color? _albumTint;
 
@@ -195,11 +203,26 @@ public sealed partial class MainWindow : Window
     public void ApplyGlass()
     {
         var g = _ps.Settings.Glass;
+        TintLayer.Fill = null;
 
-        if (g.Effect == 4)
+        if (g.Effect is 5 or 6)
+        {
+            bool blur = g.Effect == 5;
+            _glass = null;
+            if (_seeThrough == null || _seeThrough.Blur != blur)
+            {
+                _seeThrough = new SeeThroughBackdrop(blur, WinRT.Interop.WindowNative.GetWindowHandle(this));
+                SystemBackdrop = _seeThrough;
+            }
+            // frosting: neutral wash; never fully 0 so the window still catches mouse clicks
+            Root.Background = new SolidColorBrush(DefaultTint) { Opacity = Math.Max(0.02, g.Luminosity * 0.9) };
+            TintLayer.Fill = new SolidColorBrush(CurrentTint(g)) { Opacity = g.TintOpacity };
+        }
+        else if (g.Effect == 4)
         {
             SystemBackdrop = null;
             _glass = null;
+            _seeThrough = null;
             Root.Background = new SolidColorBrush(IsDark
                 ? Windows.UI.Color.FromArgb(255, 32, 32, 32)
                 : Windows.UI.Color.FromArgb(255, 243, 243, 243));
@@ -207,18 +230,13 @@ public sealed partial class MainWindow : Window
         else
         {
             Root.Background = null;
+            _seeThrough = null;
             if (_glass == null || _glass.Effect != g.Effect || _glass.KeepActive != g.KeepActive)
             {
                 _glass = new GlassBackdrop(g.Effect, g.KeepActive);
                 SystemBackdrop = _glass;
             }
-            var tint = g.TintMode switch
-            {
-                1 => _albumTint ?? DefaultTint,
-                2 => ColorUtil.ParseHex(g.CustomTint) ?? DefaultTint,
-                _ => DefaultTint,
-            };
-            _glass.Update(tint, g.TintOpacity, g.Luminosity);
+            _glass.Update(CurrentTint(g), g.TintOpacity, g.Luminosity);
         }
 
         // panels on top of the glass: content area + player bar

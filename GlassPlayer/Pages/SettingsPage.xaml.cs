@@ -58,7 +58,7 @@ public sealed partial class SettingsPage : Page
     private void LoadGlassControls()
     {
         _loading = true;
-        EffectBox.SelectedIndex = Math.Clamp(Glass.Effect, 0, 4);
+        EffectBox.SelectedIndex = Math.Clamp(Glass.Effect, 0, 6);
         TintModeBox.SelectedIndex = Math.Clamp(Glass.TintMode, 0, 2);
         TintSlider.Value = Glass.TintOpacity * 100;
         LumSlider.Value = Glass.Luminosity * 100;
@@ -74,8 +74,10 @@ public sealed partial class SettingsPage : Page
         TintValue.Text = $"{TintSlider.Value:0}%";
         LumValue.Text = $"{LumSlider.Value:0}%";
         SurfaceValue.Text = $"{SurfaceSlider.Value:0}%";
-        bool glass = EffectBox.SelectedIndex != 4;
-        TintModeBox.IsEnabled = TintSlider.IsEnabled = LumSlider.IsEnabled = KeepActiveSwitch.IsEnabled = glass;
+        var effect = EffectBox.SelectedIndex;
+        bool glass = effect != 4;
+        TintModeBox.IsEnabled = TintSlider.IsEnabled = LumSlider.IsEnabled = glass;
+        KeepActiveSwitch.IsEnabled = effect <= 3; // Blur/Clear glass never switch off
     }
 
     private void SaveAndApply()

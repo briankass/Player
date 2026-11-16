@@ -10,6 +10,9 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- colour layer for the Blur/Clear glass effects (frosting is Root's own background) -->
+        <Rectangle x:Name="TintLayer" Grid.RowSpan="3" IsHitTestVisible="False"/>
+
         <!-- Title bar: draggable, nothing clickable so it never collides with the caption buttons -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Padding="16,0,0,0" ColumnSpacing="10">
             <Grid.ColumnDefinitions>

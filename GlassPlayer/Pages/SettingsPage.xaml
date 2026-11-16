@@ -67,7 +67,7 @@
                         <FontIcon Glyph="&#xE790;" FontSize="20"/>
                         <StackPanel Grid.Column="1">
                             <TextBlock Text="Glass effect"/>
-                            <TextBlock Text="Acrylic blurs whatever is behind the window. Mica only picks up your wallpaper colours."
+                            <TextBlock Text="Blur glass and Clear glass are truly see-through. Mica and Acrylic are Windows materials and always stay fairly solid."
                                        Opacity="0.7" FontSize="12" TextWrapping="Wrap"/>
                         </StackPanel>
                         <ComboBox x:Name="EffectBox" Grid.Column="2" MinWidth="170" VerticalAlignment="Center"
@@ -77,6 +77,8 @@
                             <ComboBoxItem Content="Acrylic"/>
                             <ComboBoxItem Content="Acrylic (thin)"/>
                             <ComboBoxItem Content="Solid (no glass)"/>
+                            <ComboBoxItem Content="Blur glass"/>
+                            <ComboBoxItem Content="Clear glass"/>
                         </ComboBox>
                     </Grid>
 
@@ -85,28 +87,29 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE2B1;" FontSize="20"/>
-                        <StackPanel Grid.Column="1" Spacing="8">
-                            <TextBlock Text="Tint colour"/>
+                        <FontIcon Glyph="&#xE2B1;" FontSize="20" VerticalAlignment="Top" Margin="0,4,0,0"/>
+                        <StackPanel Grid.Column="1" Spacing="10">
+                            <Grid>
+                                <TextBlock Text="Tint colour" VerticalAlignment="Center"/>
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                    <ComboBox x:Name="TintModeBox" MinWidth="170" SelectionChanged="Glass_Changed">
+                                        <ComboBoxItem Content="Default"/>
+                                        <ComboBoxItem Content="From album art"/>
+                                        <ComboBoxItem Content="Custom colour"/>
+                                    </ComboBox>
+                                    <Button ToolTipService.ToolTip="Pick any colour">
+                                        <FontIcon Glyph="&#xE790;" FontSize="14"/>
+                                        <Button.Flyout>
+                                            <Flyout>
+                                                <ColorPicker x:Name="TintPicker" IsAlphaEnabled="False" IsMoreButtonVisible="False"
+                                                             IsColorChannelTextInputVisible="False" ColorChanged="TintPicker_ColorChanged"/>
+                                            </Flyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
                             <StackPanel x:Name="SwatchPanel" Orientation="Horizontal" Spacing="8"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <ComboBox x:Name="TintModeBox" MinWidth="170" SelectionChanged="Glass_Changed">
-                                <ComboBoxItem Content="Default"/>
-                                <ComboBoxItem Content="From album art"/>
-                                <ComboBoxItem Content="Custom colour"/>
-                            </ComboBox>
-                            <Button ToolTipService.ToolTip="Pick any colour">
-                                <FontIcon Glyph="&#xE790;" FontSize="14"/>
-                                <Button.Flyout>
-                                    <Flyout>
-                                        <ColorPicker x:Name="TintPicker" IsAlphaEnabled="False" IsMoreButtonVisible="False"
-                                                     IsColorChannelTextInputVisible="False" ColorChanged="TintPicker_ColorChanged"/>
-                                    </Flyout>
-                                </Button.Flyout>
-                            </Button>
                         </StackPanel>
                     </Grid>
 
