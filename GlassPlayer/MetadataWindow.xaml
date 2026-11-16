@@ -1,0 +1,73 @@
+<Window
+    x:Class="GlassPlayer.MetadataWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:GlassPlayer.Models">
+
+    <Grid Padding="16" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel x:Name="TitleArea" Grid.Row="0" Padding="0,0,140,0">
+            <TextBlock Text="Fix metadata &amp; album art" FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock x:Name="SummaryText" Opacity="0.7" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12">
+            <ComboBox x:Name="ScopeBox" SelectedIndex="0" SelectionChanged="ScopeBox_SelectionChanged" MinWidth="200">
+                <ComboBoxItem Content="Tracks missing something"/>
+                <ComboBoxItem Content="Tracks missing album art"/>
+                <ComboBoxItem Content="All tracks"/>
+            </ComboBox>
+            <CheckBox x:Name="OnlyMissingBox" Content="Only fill empty fields" IsChecked="True"/>
+            <Button x:Name="SearchButton" Content="Search online" Click="SearchButton_Click" Style="{StaticResource AccentButtonStyle}"/>
+            <Button x:Name="StopButton" Content="Stop" Click="StopButton_Click" IsEnabled="False"/>
+            <Button Content="Select all found" Click="SelectAll_Click"/>
+            <Button Content="Select none" Click="SelectNone_Click"/>
+        </StackPanel>
+
+        <ListView x:Name="ItemsList" Grid.Row="2" SelectionMode="None">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="models:FixItem">
+                    <Grid Padding="0,8" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <CheckBox IsChecked="{x:Bind IsSelected, Mode=TwoWay}" MinWidth="0" VerticalAlignment="Center"/>
+                        <Border Grid.Column="1" Width="64" Height="64" CornerRadius="6"
+                                Background="{ThemeResource ControlFillColorSecondaryBrush}">
+                            <Image Source="{x:Bind ArtPreview, Mode=OneWay}" Stretch="UniformToFill"/>
+                        </Border>
+                        <StackPanel Grid.Column="2" Spacing="2">
+                            <TextBlock Text="{x:Bind FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{x:Bind CurrentText}" Opacity="0.75" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{x:Bind MissingText}" Opacity="0.55" FontSize="12"/>
+                            <TextBlock Text="{x:Bind ProposedText, Mode=OneWay}" FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="{x:Bind Status, Mode=OneWay}" Opacity="0.55" FontSize="11"/>
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <Grid Grid.Row="3" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Spacing="4">
+                <ProgressBar x:Name="Progress" Minimum="0" Maximum="1" Value="0"/>
+                <TextBlock x:Name="StatusText" Opacity="0.7" FontSize="12"
+                           Text="Nothing is written until you click Write tags. Back up your library before large batches."/>
+            </StackPanel>
+            <Button x:Name="ApplyButton" Grid.Column="1" Content="Write tags to selected" Click="ApplyButton_Click"/>
+        </Grid>
+    </Grid>
+</Window>

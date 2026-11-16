@@ -261,6 +261,30 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    // ---------- metadata fixer ----------
+
+    private MetadataWindow? _metaWindow;
+
+    private void MetadataButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_metaWindow != null) { _metaWindow.Activate(); return; }
+        _metaWindow = new MetadataWindow(_library, OnLibraryChanged, IsInUse);
+        _metaWindow.Closed += (_, _) => _metaWindow = null;
+        _metaWindow.Activate();
+    }
+
+    private bool IsInUse(string path) =>
+        _player.Source != null && _index >= 0 && _index < _visible.Count
+        && _visible[_index].Path.Equals(path, StringComparison.OrdinalIgnoreCase);
+
+    private void OnLibraryChanged()
+    {
+        var current = _index >= 0 && _index < _visible.Count ? _visible[_index].Path : null;
+        SearchBox_TextChanged(SearchBox, null!);
+        if (current != null)
+            _index = _visible.FindIndex(t => t.Path.Equals(current, StringComparison.OrdinalIgnoreCase));
+    }
+
     // ---------- updates ----------
 
     private async void UpdateButton_Click(object sender, RoutedEventArgs e)

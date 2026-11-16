@@ -20,6 +20,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="Glass Player" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
             <Button x:Name="FolderButton" Grid.Column="1" Content="Choose music folder…" Click="FolderButton_Click"/>
@@ -29,7 +30,8 @@
                 <ComboBoxItem Content="Acrylic"/>
                 <ComboBoxItem Content="Mica Alt"/>
             </ComboBox>
-            <Button x:Name="UpdateButton" Grid.Column="4" Content="Check for updates" Click="UpdateButton_Click"/>
+            <Button x:Name="MetadataButton" Grid.Column="4" Content="Fix metadata" Click="MetadataButton_Click"/>
+            <Button x:Name="UpdateButton" Grid.Column="5" Content="Check for updates" Click="UpdateButton_Click"/>
         </Grid>
 
         <!-- Main content -->
