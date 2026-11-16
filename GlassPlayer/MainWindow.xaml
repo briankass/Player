@@ -95,7 +95,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="PosText" Text="0:00" VerticalAlignment="Center"/>
-                <Slider x:Name="SeekSlider" Grid.Column="1" Minimum="0" Maximum="1" ThumbToolTipValueConverter="{x:Null}"
+                <Slider x:Name="SeekSlider" Grid.Column="1" Minimum="0" Maximum="1"
                         ValueChanged="SeekSlider_ValueChanged"/>
                 <TextBlock x:Name="DurText" Grid.Column="2" Text="0:00" VerticalAlignment="Center"/>
             </Grid>

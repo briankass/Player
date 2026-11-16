@@ -40,7 +40,7 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBar);
 
-        _player.AutoPlayEnabled = false;
+        _player.AutoPlay = false;
         _player.Volume = 0.8;
         _player.MediaEnded += (_, _) => DispatcherQueue.TryEnqueue(() => PlayRelative(1));
         _player.MediaFailed += (_, e) => DispatcherQueue.TryEnqueue(() => NowArtist.Text = "Playback failed: " + e.ErrorMessage);
