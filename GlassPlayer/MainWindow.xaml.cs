@@ -49,7 +49,10 @@ public sealed partial class MainWindow : Window
 
         Root.Loaded += async (_, _) =>
         {
-            await CheckForUpdatesAsync(silent: true);
+            if (UpdateService.TakeFailedUpdate() is string failed)
+                await ShowFailedUpdateAsync(failed); // don't immediately offer the same update again
+            else
+                await CheckForUpdatesAsync(silent: true);
             // pick up new files on the NAS in the background
             if (!string.IsNullOrEmpty(_ps.Settings.LibraryFolder) && Directory.Exists(_ps.Settings.LibraryFolder))
                 await _ps.ScanAsync(_ps.Settings.LibraryFolder);
@@ -294,6 +297,49 @@ public sealed partial class MainWindow : Window
             UpdateBar.IsOpen = false;
             if (!silent) await ShowMessage("Update failed", ex.Message);
         }
+    }
+
+    private async Task ShowFailedUpdateAsync(string version)
+    {
+        var appDir = AppContext.BaseDirectory.TrimEnd('\\');
+        var hint = appDir.Contains("Program Files", StringComparison.OrdinalIgnoreCase)
+            ? "Glass Player is inside Program Files, which Windows protects. Move the whole folder to somewhere like C:\\Apps\\GlassPlayer and updates will install without problems."
+            : "Something blocked the files from being replaced (antivirus, or the folder is read-only or synced by OneDrive).";
+        var dlg = new ContentDialog
+        {
+            Title = $"The update to {version} didn't install",
+            Content = new ScrollViewer
+            {
+                MaxHeight = 360,
+                Content = new StackPanel
+                {
+                    Spacing = 12,
+                    Children =
+                    {
+                        new TextBlock { Text = $"You're still on {UpdateService.CurrentVersion}. {hint}", TextWrapping = TextWrapping.Wrap },
+                        new TextBlock { Text = $"Installed in: {appDir}", TextWrapping = TextWrapping.Wrap, Opacity = 0.7 },
+                        new TextBlock
+                        {
+                            Text = UpdateService.LogTail(),
+                            FontFamily = new FontFamily("Consolas"),
+                            FontSize = 11,
+                            Opacity = 0.7,
+                            TextWrapping = TextWrapping.Wrap,
+                            IsTextSelectionEnabled = true,
+                        },
+                    },
+                },
+            },
+            PrimaryButtonText = "Try again",
+            SecondaryButtonText = "Open log",
+            CloseButtonText = "Close",
+            XamlRoot = Content.XamlRoot,
+        };
+        var result = await dlg.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+            await CheckForUpdatesAsync(silent: false);
+        else if (result == ContentDialogResult.Secondary)
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(UpdateService.LogPath) { UseShellExecute = true }); } catch { }
     }
 
     public async Task ShowMessage(string title, string text)

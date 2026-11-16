@@ -116,27 +116,124 @@ public class UpdateService
         }
 
         ZipFile.ExtractToDirectory(zipPath, stage, overwriteFiles: true);
+        if (!File.Exists(Path.Combine(stage, "GlassPlayer.exe")))
+            throw new InvalidOperationException("The downloaded update doesn't contain GlassPlayer.exe.");
 
         var appDir = AppContext.BaseDirectory.TrimEnd('\\', '/');
         var exe = Path.Combine(appDir, "GlassPlayer.exe");
         var pid = Environment.ProcessId;
+        var log = LogPath;
+
+        // Remember what we tried to install; the next launch checks whether it worked.
+        File.WriteAllText(PendingPath, info.Latest.ToString());
+
         var script = Path.Combine(work, "update.cmd");
         File.WriteAllText(script,
             "@echo off\r\n" +
-            $":wait\r\ntasklist /FI \"PID eq {pid}\" 2>NUL | find \"{pid}\" >NUL\r\n" +
-            "if not errorlevel 1 (timeout /t 1 /nobreak >NUL & goto wait)\r\n" +
-            $"robocopy \"{stage}\" \"{appDir}\" /E /R:5 /W:1 /NFL /NDL /NJH /NJS >NUL\r\n" +
-            $"start \"\" \"{exe}\"\r\n" +
+            $"echo ==== %DATE% %TIME% updating to {info.Tag} >> \"{log}\"\r\n" +
+            $"echo from \"{stage}\" to \"{appDir}\" >> \"{log}\"\r\n" +
+            "set /a tries=0\r\n" +
+            // wait for the app to exit (max ~30 s, then force it)
+            ":wait\r\n" +
+            $"tasklist /FI \"PID eq {pid}\" /NH 2>NUL | find \" {pid} \" >NUL\r\n" +
+            "if errorlevel 1 goto copy\r\n" +
+            "set /a tries+=1\r\n" +
+            $"if %tries% GEQ 30 (echo app still running, killing it >> \"{log}\" & taskkill /PID {pid} /F >NUL 2>&1 & ping -n 3 127.0.0.1 >NUL & goto copy)\r\n" +
+            "ping -n 2 127.0.0.1 >NUL\r\n" +
+            "goto wait\r\n" +
+            ":copy\r\n" +
+            // /IS /IT: copy even files robocopy considers identical
+            $"robocopy \"{stage}\" \"{appDir}\" /E /IS /IT /R:10 /W:1 /NP /NFL /NDL /LOG+:\"{log}\"\r\n" +
+            "set rc=%ERRORLEVEL%\r\n" +
+            $"echo robocopy exit code %rc% >> \"{log}\"\r\n" +
+            $"if %rc% GEQ 8 (echo UPDATE FAILED >> \"{log}\")\r\n" +
+            // relaunch through Explorer so the app never runs elevated
+            $"start \"\" explorer.exe \"{exe}\"\r\n" +
+            $"ping -n 3 127.0.0.1 >NUL\r\n" +
             $"rmdir /S /Q \"{work}\"\r\n");
 
-        Process.Start(new ProcessStartInfo
+        var elevate = !CanWrite(appDir);
+        File.AppendAllText(log, $"{DateTime.Now}: starting updater, elevated={elevate}, appDir={appDir}\r\n");
+        var psi = new ProcessStartInfo
         {
             FileName = "cmd.exe",
-            Arguments = $"/c \"{script}\"",
-            CreateNoWindow = true,
-            UseShellExecute = false,
+            Arguments = $"/c \"\"{script}\"\"",
             WindowStyle = ProcessWindowStyle.Hidden,
-        });
+        };
+        if (elevate)
+        {
+            psi.UseShellExecute = true; // required for the UAC prompt
+            psi.Verb = "runas";
+        }
+        else
+        {
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+        }
+
+        try
+        {
+            Process.Start(psi);
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            File.Delete(PendingPath);
+            throw new InvalidOperationException(
+                $"Glass Player is installed in {appDir}, which needs administrator permission to update, and permission was declined. " +
+                "Move the Glass Player folder somewhere like C:\\Apps\\GlassPlayer to update without prompts.");
+        }
         return true;
+    }
+
+    // ---------------- after-restart check ----------------
+
+    public static string LogPath => Path.Combine(AppSettings.DataDir, "update.log");
+    private static string PendingPath => Path.Combine(AppSettings.DataDir, "update_pending.txt");
+
+    /// <summary>
+    /// Call once at startup. If the previous run tried to install an update and we're still on an older
+    /// version, returns that version (the install failed). Otherwise null.
+    /// </summary>
+    public static string? TakeFailedUpdate()
+    {
+        try
+        {
+            if (!File.Exists(PendingPath)) return null;
+            var text = File.ReadAllText(PendingPath).Trim();
+            File.Delete(PendingPath);
+            return Version.TryParse(text, out var v) && CurrentVersion < v ? text : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static string LogTail(int lines = 12)
+    {
+        try
+        {
+            return File.Exists(LogPath) ? string.Join("\n", File.ReadAllLines(LogPath).TakeLast(lines)) : "(no log)";
+        }
+        catch
+        {
+            return "(log unreadable)";
+        }
+    }
+
+    private static bool CanWrite(string dir)
+    {
+        try
+        {
+            var probe = Path.Combine(dir, ".write_test_" + Guid.NewGuid().ToString("N"));
+            File.WriteAllText(probe, "");
+            File.Delete(probe);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
     }
 }
